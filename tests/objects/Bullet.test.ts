@@ -6,7 +6,7 @@ describe('updateBullet', () => {
     const bullet: BulletState = {
       x: 100, y: 100, vx: 300, vy: 0,
       bounceCount: 0, lifeTime: 0, ownerId: 0,
-      spawnTime: 0, active: true,
+      spawnTime: 0, active: true, wallCooldowns: new Map(),
     };
     updateBullet(bullet, 0.016, 1000);
     expect(bullet.x).toBeCloseTo(100 + 300 * 0.016);
@@ -18,7 +18,7 @@ describe('updateBullet', () => {
     const bullet: BulletState = {
       x: 100, y: 100, vx: 300, vy: 0,
       bounceCount: 0, lifeTime: 7.9, ownerId: 0,
-      spawnTime: 0, active: true,
+      spawnTime: 0, active: true, wallCooldowns: new Map(),
     };
     updateBullet(bullet, 0.2, 8000);
     expect(bullet.active).toBe(false);
@@ -28,7 +28,7 @@ describe('updateBullet', () => {
     const bullet: BulletState = {
       x: 100, y: 100, vx: 300, vy: 0,
       bounceCount: 8, lifeTime: 0, ownerId: 0,
-      spawnTime: 0, active: true,
+      spawnTime: 0, active: true, wallCooldowns: new Map(),
     };
     updateBullet(bullet, 0.016, 1000);
     expect(bullet.active).toBe(true);
@@ -38,7 +38,7 @@ describe('updateBullet', () => {
     const bullet: BulletState = {
       x: 100, y: 100, vx: 300, vy: 0,
       bounceCount: 0, lifeTime: 0, ownerId: 0,
-      spawnTime: 0, active: true,
+      spawnTime: 0, active: true, wallCooldowns: new Map(),
     };
     updateBullet(bullet, 0.016, 1000);
     expect(bullet.prevX).toBeCloseTo(100);
