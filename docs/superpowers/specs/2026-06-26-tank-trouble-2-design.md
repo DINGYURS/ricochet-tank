@@ -1,8 +1,8 @@
-# 坦克动荡2 复刻版 - 设计文档
+# Ricochet Tank - 设计文档
 
 ## 概述
 
-复刻经典 4399 Flash 游戏《坦克动荡2》(Tank Trouble 2)，使用现代 Web 技术栈在浏览器中运行。核心玩法：双人本地对战，俯视角坦克在随机生成的迷宫中战斗，子弹可反弹。
+受经典 Flash 游戏《坦克动荡2》(Tank Trouble 2) 启发，使用现代 Web 技术栈在浏览器中实现一款俯视角坦克对战游戏。核心玩法：双人本地对战，俯视角坦克在随机生成的迷宫中战斗，子弹可反弹。
 
 **目标平台：** PC 浏览器，键盘操作
 **第一版范围：** 核心对战玩法（迷宫 + 坦克 + 子弹反弹 + 计分）
@@ -58,10 +58,12 @@ ricochet-tank/
 | 右旋转 | D | → |
 | 射击 | Space | Enter |
 
+**浏览器行为阻止：** 阻止 Space、Enter、方向键的浏览器默认行为（页面滚动等），通过 `preventDefault()` 实现。
+
 ### 坦克行为
 
-- 有 `rotation`（朝向角）、`moveSpeed`、`backSpeed`（后退速度为前进的 60%）、`rotateSpeed`
-- 前进/后退：按朝向角方向移动，使用三角函数计算位移
+- 有 `rotation`（朝向角，弧度制）、`moveSpeed`、`backSpeed`（后退速度为前进的 60%）、`rotateSpeed`
+- 前进/后退：按朝向角方向移动，使用三角函数计算位移（`cos(rotation)` / `sin(rotation)`）
 - 旋转：直接修改 rotation，不改变位置
 - 静止时保持当前朝向
 - 连续移动，无移动冷却
@@ -70,7 +72,8 @@ ricochet-tank/
 
 ### 子弹行为
 
-- 从炮管前端生成，沿炮管方向直线飞行
+- 从炮管前端生成（沿炮管方向偏移坦克半径 + 子弹半径，避免与坦克重叠），沿炮管方向直线飞行
+- 射击为按下瞬间触发（keydown），不支持按住连射
 - 手动维护 `vx`、`vy`、`bounceCount`、`lifeTime`、`ownerId`
 - 每帧按 vx/vy 更新位置
 - 每个玩家场上最多存在 1 发子弹
@@ -85,7 +88,7 @@ ricochet-tank/
 - 墙壁记录 `orientation: vertical | horizontal`
 - 命中 vertical wall → 反转 vx
 - 命中 horizontal wall → 反转 vy
-- 同一帧同时命中 vertical 和 horizontal → vx、vy 都反转
+- 同一帧多面墙碰撞：先收集本帧所有碰撞，再统一反弹处理
 - 反弹后将子弹沿新速度方向推出 1~2px
 - 同一面墙设置约 50ms hit cooldown，避免重复触发
 
@@ -147,7 +150,7 @@ startRound()
 GameScene.update(time, delta)
   更新 UI
   if roundState !== PLAYING: return
-  dt = delta / 1000
+  dt = min(delta / 1000, 0.05)  // 上限 50ms，避免卡顿后瞬移
   读取输入
   更新坦克旋转
   更新坦克移动 + 碰墙修正
