@@ -66,11 +66,14 @@ export class Tank {
     this.bodyGraphics.rotateCanvas(this.rotation);
 
     const color = this.playerId === 0 ? 0x4488ff : 0xff4444;
-    this.bodyGraphics.fillStyle(color, 1);
-    this.bodyGraphics.fillRect(-TANK_BODY_WIDTH / 2, -TANK_BODY_HEIGHT / 2, TANK_BODY_WIDTH, TANK_BODY_HEIGHT);
 
+    // Body — longer dimension along X axis
+    this.bodyGraphics.fillStyle(color, 1);
+    this.bodyGraphics.fillRect(-TANK_BODY_HEIGHT / 2, -TANK_BODY_WIDTH / 2, TANK_BODY_HEIGHT, TANK_BODY_WIDTH);
+
+    // Barrel — extends to the right (forward direction when rotation=0)
     this.bodyGraphics.fillStyle(0xcccccc, 1);
-    this.bodyGraphics.fillRect(-TANK_BARREL_WIDTH / 2, -TANK_BODY_HEIGHT / 2 - TANK_BARREL_HEIGHT, TANK_BARREL_WIDTH, TANK_BARREL_HEIGHT + TANK_BODY_HEIGHT / 2);
+    this.bodyGraphics.fillRect(TANK_BODY_HEIGHT / 2, -TANK_BARREL_WIDTH / 2, TANK_BARREL_HEIGHT, TANK_BARREL_WIDTH);
 
     this.bodyGraphics.restore();
   }
