@@ -6,44 +6,44 @@ import {
 } from '../config';
 import { PowerUpType } from '../enums/PowerUpType';
 
-// 16x16 pixel tank pointing RIGHT, 0=transparent, 1=body, 2=track, 3=turret
-// At rotation=0 (right/+X), barrel points right
+// 16x16 pixel tank, 0=transparent, 1=body, 2=track, 3=turret
+// At rotation=0 (right/+X), HEAD points right (track side), TAIL points left (barrel side)
 //
 // Visual layout (rotation=0, facing right):
-//   T = track, B = body, t = turret, G = barrel(gun)
+//   T = track(head), B = body, t = turret, G = barrel(gun/tail)
 //
 //   . . . . . . . . . . . . . . . .
-//   . . . . . . . . t t t . . . . .
-//   . . . . . t t t t t t G G G G .
-//   . . . . . t t B B B B B G G G .
-//   T . B B B B B B B B B B B G G .
-//   T . B B B B B B B B B B B G G .
-//   T . B B B B B B B B B B B G G .
-//   T . B B B B B B B B B B B . . .
-//   T . B B B B B B B B B B B . . .
-//   T . B B B B B B B B B B B G G .
-//   T . B B B B B B B B B B B G G .
-//   T . B B B B B B B B B B B G G .
-//   . . . . . t t B B B B B G G G .
-//   . . . . . t t t t t t G G G G .
-//   . . . . . . . . t t t . . . . .
+//   . . . . . t t t . . . . . . . .
+//   G G G G . t t t t t t t . . . .
+//   G G G . . B B B B B t t . . . .
+//   G G . B B B B B B B B B B B . T
+//   G G . B B B B B B B B B B B . T
+//   G G . B B B B B B B B B B B . T
+//   . . . B B B B B B B B B B B . T
+//   . . . B B B B B B B B B B B . T
+//   G G . B B B B B B B B B B B . T
+//   G G . B B B B B B B B B B B . T
+//   G G . B B B B B B B B B B B . T
+//   G G G . . B B B B B t t . . . .
+//   G G G G . t t t t t t t . . . .
+//   . . . . . t t t . . . . . . . .
 //   . . . . . . . . . . . . . . . .
 const TANK_PIXEL_GRID: number[][] = [
   [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  [0,0,0,0,0,0,0,0,3,3,3,0,0,0,0,0],
-  [0,0,0,0,0,3,3,3,3,3,3,1,1,1,1,0],
-  [0,0,0,0,0,3,3,1,1,1,1,1,1,1,1,0],
-  [2,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
-  [2,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
-  [2,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
-  [2,0,1,1,1,1,1,1,1,1,1,1,1,0,0,0],
-  [2,0,1,1,1,1,1,1,1,1,1,1,1,0,0,0],
-  [2,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
-  [2,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
-  [2,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
-  [0,0,0,0,0,3,3,1,1,1,1,1,1,1,1,0],
-  [0,0,0,0,0,3,3,3,3,3,3,1,1,1,1,0],
-  [0,0,0,0,0,0,0,0,3,3,3,0,0,0,0,0],
+  [0,0,0,0,0,3,3,3,0,0,0,0,0,0,0,0],
+  [1,1,1,1,0,3,3,3,3,3,3,3,0,0,0,0],
+  [1,1,1,0,0,1,1,1,1,1,3,3,0,0,0,0],
+  [1,1,0,1,1,1,1,1,1,1,1,1,1,1,0,2],
+  [1,1,0,1,1,1,1,1,1,1,1,1,1,1,0,2],
+  [1,1,0,1,1,1,1,1,1,1,1,1,1,1,0,2],
+  [0,0,0,1,1,1,1,1,1,1,1,1,1,1,0,2],
+  [0,0,0,1,1,1,1,1,1,1,1,1,1,1,0,2],
+  [1,1,0,1,1,1,1,1,1,1,1,1,1,1,0,2],
+  [1,1,0,1,1,1,1,1,1,1,1,1,1,1,0,2],
+  [1,1,0,1,1,1,1,1,1,1,1,1,1,1,0,2],
+  [1,1,1,0,0,1,1,1,1,1,3,3,0,0,0,0],
+  [1,1,1,1,0,3,3,3,3,3,3,3,0,0,0,0],
+  [0,0,0,0,0,3,3,3,0,0,0,0,0,0,0,0],
   [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
 ];
 
