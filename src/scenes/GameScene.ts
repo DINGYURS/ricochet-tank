@@ -11,6 +11,7 @@ import { InputManager } from '../systems/InputManager';
 import { generateMaze } from '../systems/MazeGenerator';
 import { separateCircleFromRect, circleCircleOverlap, circleRectOverlap } from '../systems/Collision';
 import { reflect } from '../utils/math';
+import { SoundManager } from '../systems/SoundManager';
 import { Wall } from '../objects/Wall';
 import { Tank } from '../objects/Tank';
 import { Bullet, isOwnerSafe } from '../objects/Bullet';
@@ -36,6 +37,7 @@ export class GameScene extends Phaser.Scene {
   private statusText!: Phaser.GameObjects.Text;
   private ammoBarP1!: Phaser.GameObjects.Graphics;
   private ammoBarP2!: Phaser.GameObjects.Graphics;
+  private soundManager!: SoundManager;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -45,6 +47,7 @@ export class GameScene extends Phaser.Scene {
     this.scoreP1 = 0;
     this.scoreP2 = 0;
     this.inputManager = new InputManager(this);
+    this.soundManager = new SoundManager();
 
     this.scoreText = this.add.text(GAME_WIDTH / 2, 20, '', {
       fontSize: '24px',
@@ -88,9 +91,18 @@ export class GameScene extends Phaser.Scene {
     this.statusText.setText('READY');
     this.updateScoreText();
 
-    this.time.delayedCall(ROUND_START_DELAY * 1000, () => {
-      this.statusText.setText('');
-      this.roundState = RoundState.PLAYING;
+    let tickCount = 0;
+    this.time.addEvent({
+      delay: ROUND_START_DELAY * 1000 / 3,
+      repeat: 2,
+      callback: () => {
+        tickCount++;
+        this.soundManager.countdownTick();
+        if (tickCount === 3) {
+          this.statusText.setText('');
+          this.roundState = RoundState.PLAYING;
+        }
+      },
     });
   }
 
@@ -216,6 +228,7 @@ export class GameScene extends Phaser.Scene {
     const vy = Math.sin(tank.rotation) * BULLET_SPEED;
     const bullet = new Bullet(this, tip.x, tip.y, vx, vy, tank.playerId, currentTimeMs / 1000);
     this.bullets.push(bullet);
+    this.soundManager.shoot();
     tank.ammo--;
     tank.shootCooldown = BULLET_SHOOT_COOLDOWN;
 
@@ -250,6 +263,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     bullet.state.bounceCount++;
+    this.soundManager.bounce();
     if (bullet.state.bounceCount > 8) {
       bullet.state.active = false;
       return;
@@ -279,7 +293,12 @@ export class GameScene extends Phaser.Scene {
       this.statusText.setText('P1 Wins!');
     }
 
+    if (uniqueDead.length !== 2) {
+      this.soundManager.explosion();
+    }
+
     this.updateScoreText();
+    this.soundManager.victory();
 
     this.time.delayedCall(ROUND_END_DELAY * 1000, () => {
       if (this.scoreP1 >= SCORE_TO_WIN || this.scoreP2 >= SCORE_TO_WIN) {
