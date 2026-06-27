@@ -27,11 +27,15 @@ export const BULLET_RADIUS = 4;
 export const BULLET_SPEED = 300;
 export const BULLET_MAX_BOUNCES = 8;
 export const BULLET_MAX_LIFETIME = 8;
-export const BULLET_SHOOT_COOLDOWN = 0.8;
+export const BULLET_SHOOT_COOLDOWN = 0.3;
 export const BULLET_SAFE_PERIOD = 0.1;
 export const BULLET_WALL_PUSH = 1.5;
 export const BULLET_WALL_COOLDOWN = 0.05;
 export const BULLET_COLOR = 0xffff00;
+
+// Ammo
+export const AMMO_MAX = 10;
+export const AMMO_REFILL_INTERVAL = 180; // seconds
 
 // Match
 export const SCORE_TO_WIN = 3;
