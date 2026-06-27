@@ -13,7 +13,7 @@ Enhance the existing Ricochet Tank game with three features: ammo system, pixel 
 - Each tank starts each round with 10 bullets
 - Multiple bullets can be active simultaneously (remove single-bullet-per-player restriction)
 - Shooting cooldown between consecutive shots: 0.3 seconds
-- Every 3 minutes (180 seconds), ammo refills to 10 regardless of current count
+- Every 3 minutes (180 seconds) within a round, ammo refills to 10 regardless of current count
 - HUD displays ammo count as an energy bar
 
 ### Config Changes (`src/config.ts`)
@@ -48,6 +48,10 @@ Enhance the existing Ricochet Tank game with three features: ammo system, pixel 
   - Used ammo: bar shortens proportionally
   - Empty: bar fully depleted (gray)
 - Implementation: two `Graphics` objects drawn each frame based on current `tank.ammo / AMMO_MAX`
+  - Bar dimensions: 80px wide × 10px tall, 1px border
+  - P1 bar: positioned at (10, 50), anchored top-left
+  - P2 bar: positioned at (GAME_WIDTH - 90, 50), anchored top-left
+  - Background: dark gray `#333333`, filled portion: player color, border: `#888888`
 
 ---
 
@@ -68,7 +72,7 @@ Enhance the existing Ricochet Tank game with three features: ammo system, pixel 
 |----------|-------|-------|
 | `PIXEL_SIZE` | 2 | Screen pixels per logical pixel |
 | `TANK_GRID_SIZE` | 16 | Logical pixels per side |
-| `TANK_RADIUS` | 14 | Keep existing collision radius |
+| `TANK_RADIUS` | 16 | Updated: covers 32x32 tank visual (was 14) |
 
 Remove or mark as unused: `TANK_BODY_WIDTH`, `TANK_BODY_HEIGHT`, `TANK_BARREL_WIDTH`, `TANK_BARREL_HEIGHT`
 
@@ -116,7 +120,7 @@ Row 15: . . . □ □ . . . . . . □ □ . . .
 
 Update `getBarrelTip()` to match new pixel grid:
 - Barrel tip is at grid row 0, center (columns 6-9)
-- Offset from center: approximately 14 pixels up (7 logical pixels × 2px)
+- Offset from center: 16 pixels (8 logical pixels × 2px, grid row 0 is 8 rows from center)
 - Use the same rotation math as before: `x + cos(rotation) * offset, y + sin(rotation) * offset`
 
 ---
