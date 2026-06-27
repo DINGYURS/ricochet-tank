@@ -318,6 +318,7 @@ export class GameScene extends Phaser.Scene {
             bullet.state.active = false;
             this.soundManager.shieldBreak();
           } else {
+            this.soundManager.explosion();
             deadPlayers.push(tank.playerId);
           }
         }
