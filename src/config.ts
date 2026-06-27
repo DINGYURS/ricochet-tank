@@ -31,7 +31,7 @@ export const BULLET_COLOR = 0xffff00;
 
 // Ammo
 export const AMMO_MAX = 10;
-export const AMMO_REFILL_INTERVAL = 180; // seconds
+export const AMMO_REFILL_INTERVAL = 60; // seconds
 
 // Power-ups
 export const POWERUP_SPAWN_INTERVAL_MIN = 8;
