@@ -16,7 +16,7 @@ export const TANK_GRID_SIZE = 16;
 export const TANK_RADIUS = 16; // was 14, now covers 32x32 pixel tank
 export const TANK_MOVE_SPEED = 150;
 export const TANK_BACK_SPEED = 90;
-export const TANK_ROTATE_SPEED = 3;
+export const TANK_ROTATE_SPEED = 5;
 
 // Bullet
 export const BULLET_RADIUS = 4;
