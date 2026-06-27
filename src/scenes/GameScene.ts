@@ -5,6 +5,7 @@ import {
   MAZE_COLS, MAZE_ROWS, CELL_SIZE, WALL_THICKNESS, WALL_REMOVE_RATIO, SPAWN_CLEAR_RADIUS,
   TANK_ROTATE_SPEED, TANK_MOVE_SPEED, TANK_BACK_SPEED,
   BULLET_SPEED, BULLET_SHOOT_COOLDOWN, BULLET_WALL_PUSH, BULLET_WALL_COOLDOWN,
+  AMMO_MAX, AMMO_REFILL_INTERVAL,
 } from '../config';
 import { InputManager } from '../systems/InputManager';
 import { generateMaze } from '../systems/MazeGenerator';
@@ -126,6 +127,15 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    // Ammo refill timer
+    for (const tank of this.tanks) {
+      tank.ammoRefillTimer += dt;
+      if (tank.ammoRefillTimer >= AMMO_REFILL_INTERVAL) {
+        tank.ammo = AMMO_MAX;
+        tank.ammoRefillTimer = 0;
+      }
+    }
+
     for (const bullet of this.bullets) {
       if (!bullet.state.active) continue;
       bullet.update(dt, currentTimeMs);
@@ -193,15 +203,14 @@ export class GameScene extends Phaser.Scene {
   private handleShoot(tank: Tank, shootPressed: boolean, currentTimeMs: number): void {
     if (!shootPressed) return;
     if (tank.shootCooldown > 0) return;
-
-    const existingBullet = this.bullets.find(b => b.state.ownerId === tank.playerId && b.state.active);
-    if (existingBullet) return;
+    if (tank.ammo <= 0) return;
 
     const tip = tank.getBarrelTip();
     const vx = Math.cos(tank.rotation) * BULLET_SPEED;
     const vy = Math.sin(tank.rotation) * BULLET_SPEED;
     const bullet = new Bullet(this, tip.x, tip.y, vx, vy, tank.playerId, currentTimeMs / 1000);
     this.bullets.push(bullet);
+    tank.ammo--;
     tank.shootCooldown = BULLET_SHOOT_COOLDOWN;
 
     this.time.addEvent({
