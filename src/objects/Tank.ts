@@ -5,33 +5,51 @@ import {
   PIXEL_SIZE, TANK_GRID_SIZE, AMMO_MAX,
 } from '../config';
 
-// 16x16 pixel pattern (original rotated 90° clockwise: new[i][j] = old[15-j][i])
-// 0=transparent, 1=body, 2=track
-// Barrel tip at col 13 (right), tracks at cols 0-1 (left)
-// At rotation=0 (right/+X), barrel points right, tracks on left
+// 16x16 pixel tank pointing RIGHT, 0=transparent, 1=body, 2=track, 3=turret
+// At rotation=0 (right/+X), barrel points right
+//
+// Visual layout (rotation=0, facing right):
+//   T = track, B = body, t = turret, G = barrel(gun)
+//
+//   . . . . . . . . . . . . . . . .
+//   . . . . . . . . t t t . . . . .
+//   . . . . . t t t t t t G G G G .
+//   . . . . . t t B B B B B G G G .
+//   T . B B B B B B B B B B B G G .
+//   T . B B B B B B B B B B B G G .
+//   T . B B B B B B B B B B B G G .
+//   T . B B B B B B B B B B B . . .
+//   T . B B B B B B B B B B B . . .
+//   T . B B B B B B B B B B B G G .
+//   T . B B B B B B B B B B B G G .
+//   T . B B B B B B B B B B B G G .
+//   . . . . . t t B B B B B G G G .
+//   . . . . . t t t t t t G G G G .
+//   . . . . . . . . t t t . . . . .
+//   . . . . . . . . . . . . . . . .
 const TANK_PIXEL_GRID: number[][] = [
-  [2,2,0,0,0,0,0,0,0,1,1,1,0,0,0,0], // row 0:  was old row 15 (track bottom)
-  [2,2,0,0,0,0,0,0,0,1,1,1,0,0,0,0], // row 1:  was old row 14 (track bottom)
-  [0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0], // row 2:  was old row 13
-  [0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0], // row 3:  was old row 12
-  [0,0,1,1,0,0,0,1,1,1,1,1,1,1,0,0], // row 4:  was old row 11 (track detail)
-  [0,0,1,1,0,0,0,1,1,1,1,1,1,1,0,0], // row 5:  was old row 10
-  [0,1,1,1,0,1,1,1,1,1,1,1,1,1,1,0], // row 6:  was old row 9
-  [0,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1], // row 7:  was old row 8 (barrel)
-  [0,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1], // row 8:  was old row 7 (barrel)
-  [0,0,1,1,0,0,0,1,1,1,1,1,1,1,1,1], // row 9:  was old row 6
-  [0,0,1,1,0,0,0,1,1,1,1,1,1,1,1,0], // row 10: was old row 5
-  [0,0,0,0,0,1,1,1,1,1,0,1,1,0,0,0], // row 11: was old row 4 (turret detail)
-  [0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0], // row 12: was old row 3
-  [0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0], // row 13: was old row 2
-  [0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0], // row 14: was old row 1 (barrel base)
-  [0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0], // row 15: was old row 0 (barrel tip)
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+  [0,0,0,0,0,0,0,0,3,3,3,0,0,0,0,0],
+  [0,0,0,0,0,3,3,3,3,3,3,1,1,1,1,0],
+  [0,0,0,0,0,3,3,1,1,1,1,1,1,1,1,0],
+  [2,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
+  [2,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
+  [2,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
+  [2,0,1,1,1,1,1,1,1,1,1,1,1,0,0,0],
+  [2,0,1,1,1,1,1,1,1,1,1,1,1,0,0,0],
+  [2,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
+  [2,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
+  [2,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
+  [0,0,0,0,0,3,3,1,1,1,1,1,1,1,1,0],
+  [0,0,0,0,0,3,3,3,3,3,3,1,1,1,1,0],
+  [0,0,0,0,0,0,0,0,3,3,3,0,0,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
 ];
 
-// Colors per player: [body, track]
-const TANK_COLORS: Record<number, { body: number; track: number }> = {
-  0: { body: 0x4488ff, track: 0x2255aa }, // P1 blue
-  1: { body: 0xff4444, track: 0xaa2222 }, // P2 red
+// Colors per player: body, track, turret
+const TANK_COLORS: Record<number, { body: number; track: number; turret: number }> = {
+  0: { body: 0x4488ff, track: 0x2255aa, turret: 0x3366cc }, // P1 blue
+  1: { body: 0xff4444, track: 0xaa2222, turret: 0xcc3333 }, // P2 red
 };
 
 export interface TankMovementResult {
@@ -104,7 +122,9 @@ export class Tank {
         const cell = TANK_PIXEL_GRID[row][col];
         if (cell === 0) continue;
 
-        const color = cell === 1 ? colors.body : colors.track;
+        const colorMap: Record<number, number> = { 1: colors.body, 2: colors.track, 3: colors.turret };
+        const color = colorMap[cell];
+        if (!color) continue;
         this.bodyGraphics.fillStyle(color, 1);
         this.bodyGraphics.fillRect(
           (col - halfGrid) * PIXEL_SIZE,
