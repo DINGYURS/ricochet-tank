@@ -5,26 +5,26 @@ import {
   PIXEL_SIZE, TANK_GRID_SIZE, AMMO_MAX,
 } from '../config';
 
-// 16x16 pixel pattern, 0=transparent, 1=body, 2=track
-// Row 0 = barrel tip (front, points in +X direction at rotation=0)
-// Row 15 = tracks (back)
+// 16x16 pixel pattern (90° clockwise rotation of original), 0=transparent, 1=body, 2=track
+// Barrel at cols 6-9 (right side), tracks at rows 14-15 (left side)
+// At rotation=0 (right/+X), barrel points right
 const TANK_PIXEL_GRID: number[][] = [
-  [0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0], // row 0: barrel tip
-  [0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0], // row 1: barrel
-  [0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0], // row 2: turret top
-  [0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0], // row 3: turret
-  [0,0,0,1,1,0,1,1,1,1,0,1,1,0,0,0], // row 4: turret detail
-  [0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0], // row 5: body top
-  [0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0], // row 6
-  [0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0], // row 7
-  [0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0], // row 8: main body
-  [0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0], // row 9
-  [0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0], // row 10
-  [0,0,1,2,1,1,1,1,1,1,1,1,2,1,0,0], // row 11: track detail
-  [0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0], // row 12
-  [0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0], // row 13
-  [0,0,0,2,2,0,0,0,0,0,0,2,2,0,0,0], // row 14: track bottom
-  [0,0,0,2,2,0,0,0,0,0,0,2,2,0,0,0], // row 15
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // row 0
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // row 1
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // row 2
+  [0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,0], // row 3: body
+  [0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0], // row 4: body
+  [0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,0], // row 5: body + track detail
+  [0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1], // row 6: turret + barrel
+  [0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1], // row 7: turret + barrel
+  [0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1], // row 8: turret + barrel
+  [0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1], // row 9: turret + barrel
+  [0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,0], // row 10: body + track detail
+  [0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0], // row 11: body
+  [0,0,0,0,0,0,0,0,1,1,0,1,1,0,0,0], // row 12: turret detail
+  [0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0], // row 13: turret
+  [2,2,0,0,0,0,0,0,0,1,1,1,0,0,0,0], // row 14: track bottom + barrel base
+  [2,2,0,0,0,0,0,0,0,1,1,1,0,0,0,0], // row 15: track bottom + barrel base
 ];
 
 // Colors per player: [body, track]
@@ -137,9 +137,9 @@ export class Tank {
   }
 
   getBarrelTip(): { x: number; y: number } {
-    // Barrel tip is at row 0, center (cols 6-9) of the 16x16 grid
-    // Offset from center: 8 rows * 2px = 16 screen pixels
-    const offset = TANK_GRID_SIZE / 2 * PIXEL_SIZE;
+    // Barrel tip is at col 14, center rows (6-9) of the rotated 16x16 grid
+    // Center of grid is at col 8, so offset = (14 - 8) * 2px = 12, plus half barrel = 14
+    const offset = 14;
     return {
       x: this.x + Math.cos(this.rotation) * offset,
       y: this.y + Math.sin(this.rotation) * offset,
