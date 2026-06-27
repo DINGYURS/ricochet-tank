@@ -11,7 +11,9 @@ export const WALL_REMOVE_RATIO = 0.2;
 export const SPAWN_CLEAR_RADIUS = 2;
 
 // Tank
-export const TANK_RADIUS = 14;
+export const PIXEL_SIZE = 2;
+export const TANK_GRID_SIZE = 16;
+export const TANK_RADIUS = 16; // was 14, now covers 32x32 pixel tank
 export const TANK_BODY_WIDTH = 24;
 export const TANK_BODY_HEIGHT = 30;
 export const TANK_BARREL_WIDTH = 8;

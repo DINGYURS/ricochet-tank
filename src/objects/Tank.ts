@@ -1,10 +1,35 @@
 import Phaser from 'phaser';
 import {
-  TANK_RADIUS, TANK_BODY_WIDTH, TANK_BODY_HEIGHT,
-  TANK_BARREL_WIDTH, TANK_BARREL_HEIGHT,
+  TANK_RADIUS,
   TANK_MOVE_SPEED, TANK_BACK_SPEED, TANK_ROTATE_SPEED,
-  AMMO_MAX,
+  PIXEL_SIZE, TANK_GRID_SIZE, AMMO_MAX,
 } from '../config';
+
+// 16x16 pixel pattern (pointing up), 0=transparent, 1=body, 2=track
+const TANK_PIXEL_GRID: number[][] = [
+  [0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0], // row 0: barrel tip
+  [0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0], // row 1: barrel
+  [0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0], // row 2: turret top
+  [0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0], // row 3: turret
+  [0,0,0,1,1,0,1,1,1,1,0,1,1,0,0,0], // row 4: turret detail
+  [0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0], // row 5: body top
+  [0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0], // row 6
+  [0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0], // row 7
+  [0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0], // row 8: main body
+  [0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0], // row 9
+  [0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0], // row 10
+  [0,0,1,2,1,1,1,1,1,1,1,1,2,1,0,0], // row 11: track detail
+  [0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0], // row 12
+  [0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0], // row 13
+  [0,0,0,2,2,0,0,0,0,0,0,2,2,0,0,0], // row 14: track bottom
+  [0,0,0,2,2,0,0,0,0,0,0,2,2,0,0,0], // row 15
+];
+
+// Colors per player: [body, track]
+const TANK_COLORS: Record<number, { body: number; track: number }> = {
+  0: { body: 0x4488ff, track: 0x2255aa }, // P1 blue
+  1: { body: 0xff4444, track: 0xaa2222 }, // P2 red
+};
 
 export interface TankMovementResult {
   x: number;
@@ -68,15 +93,24 @@ export class Tank {
     this.bodyGraphics.translateCanvas(this.x, this.y);
     this.bodyGraphics.rotateCanvas(this.rotation);
 
-    const color = this.playerId === 0 ? 0x4488ff : 0xff4444;
+    const colors = TANK_COLORS[this.playerId];
+    const halfGrid = TANK_GRID_SIZE / 2;
 
-    // Body — longer dimension along X axis
-    this.bodyGraphics.fillStyle(color, 1);
-    this.bodyGraphics.fillRect(-TANK_BODY_HEIGHT / 2, -TANK_BODY_WIDTH / 2, TANK_BODY_HEIGHT, TANK_BODY_WIDTH);
+    for (let row = 0; row < TANK_GRID_SIZE; row++) {
+      for (let col = 0; col < TANK_GRID_SIZE; col++) {
+        const cell = TANK_PIXEL_GRID[row][col];
+        if (cell === 0) continue;
 
-    // Barrel — extends to the right (forward direction when rotation=0)
-    this.bodyGraphics.fillStyle(0xcccccc, 1);
-    this.bodyGraphics.fillRect(TANK_BODY_HEIGHT / 2, -TANK_BARREL_WIDTH / 2, TANK_BARREL_HEIGHT, TANK_BARREL_WIDTH);
+        const color = cell === 1 ? colors.body : colors.track;
+        this.bodyGraphics.fillStyle(color, 1);
+        this.bodyGraphics.fillRect(
+          (col - halfGrid) * PIXEL_SIZE,
+          (row - halfGrid) * PIXEL_SIZE,
+          PIXEL_SIZE,
+          PIXEL_SIZE
+        );
+      }
+    }
 
     this.bodyGraphics.restore();
   }
@@ -101,7 +135,8 @@ export class Tank {
   }
 
   getBarrelTip(): { x: number; y: number } {
-    const offset = TANK_RADIUS + 5;
+    // Barrel tip is at row 0, center (cols 6-9) of the 16x16 grid
+    const offset = TANK_GRID_SIZE / 2 * PIXEL_SIZE;
     return {
       x: this.x + Math.cos(this.rotation) * offset,
       y: this.y + Math.sin(this.rotation) * offset,
