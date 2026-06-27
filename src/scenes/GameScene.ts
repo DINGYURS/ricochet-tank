@@ -34,6 +34,8 @@ export class GameScene extends Phaser.Scene {
   private bullets: Bullet[] = [];
   private scoreText!: Phaser.GameObjects.Text;
   private statusText!: Phaser.GameObjects.Text;
+  private ammoBarP1!: Phaser.GameObjects.Graphics;
+  private ammoBarP2!: Phaser.GameObjects.Graphics;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -55,6 +57,9 @@ export class GameScene extends Phaser.Scene {
       color: TEXT_COLOR,
       fontFamily: 'monospace',
     }).setOrigin(0.5).setDepth(100);
+
+    this.ammoBarP1 = this.add.graphics().setDepth(100);
+    this.ammoBarP2 = this.add.graphics().setDepth(100);
 
     this.startRound();
   }
@@ -91,6 +96,7 @@ export class GameScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     this.updateScoreText();
+    this.drawAmmoBars();
 
     if (this.inputManager.isEscapePressed()) {
       this.scene.start('MenuScene');
@@ -291,5 +297,35 @@ export class GameScene extends Phaser.Scene {
 
   private updateScoreText(): void {
     this.scoreText.setText(`P1: ${this.scoreP1}  |  P2: ${this.scoreP2}`);
+  }
+
+  private drawAmmoBars(): void {
+    const barWidth = 80;
+    const barHeight = 10;
+    const border = 1;
+
+    // P1 bar - left side
+    this.ammoBarP1.clear();
+    this.ammoBarP1.fillStyle(0x333333, 1);
+    this.ammoBarP1.fillRect(10, 50, barWidth, barHeight);
+    if (this.tanks[0]) {
+      const fillWidth = (this.tanks[0].ammo / AMMO_MAX) * barWidth;
+      this.ammoBarP1.fillStyle(0x4488ff, 1);
+      this.ammoBarP1.fillRect(10, 50, fillWidth, barHeight);
+    }
+    this.ammoBarP1.lineStyle(border, 0x888888, 1);
+    this.ammoBarP1.strokeRect(10, 50, barWidth, barHeight);
+
+    // P2 bar - right side
+    this.ammoBarP2.clear();
+    this.ammoBarP2.fillStyle(0x333333, 1);
+    this.ammoBarP2.fillRect(GAME_WIDTH - 90, 50, barWidth, barHeight);
+    if (this.tanks[1]) {
+      const fillWidth = (this.tanks[1].ammo / AMMO_MAX) * barWidth;
+      this.ammoBarP2.fillStyle(0xff4444, 1);
+      this.ammoBarP2.fillRect(GAME_WIDTH - 90, 50, fillWidth, barHeight);
+    }
+    this.ammoBarP2.lineStyle(border, 0x888888, 1);
+    this.ammoBarP2.strokeRect(GAME_WIDTH - 90, 50, barWidth, barHeight);
   }
 }
