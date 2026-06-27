@@ -14,15 +14,9 @@ export const SPAWN_CLEAR_RADIUS = 2;
 export const PIXEL_SIZE = 2;
 export const TANK_GRID_SIZE = 16;
 export const TANK_RADIUS = 16; // was 14, now covers 32x32 pixel tank
-export const TANK_BODY_WIDTH = 24;
-export const TANK_BODY_HEIGHT = 30;
-export const TANK_BARREL_WIDTH = 8;
-export const TANK_BARREL_HEIGHT = 18;
 export const TANK_MOVE_SPEED = 150;
 export const TANK_BACK_SPEED = 90;
 export const TANK_ROTATE_SPEED = 3;
-export const TANK_COLOR_P1 = 0x4488ff;
-export const TANK_COLOR_P2 = 0xff4444;
 
 // Bullet
 export const BULLET_RADIUS = 4;

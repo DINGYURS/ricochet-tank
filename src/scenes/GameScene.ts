@@ -204,7 +204,6 @@ export class GameScene extends Phaser.Scene {
     }
 
     tank.setPosition(testX, testY);
-    tank.draw();
   }
 
   private handleShoot(tank: Tank, shootPressed: boolean, currentTimeMs: number): void {
