@@ -6,6 +6,8 @@ import {
   TANK_ROTATE_SPEED, TANK_MOVE_SPEED, TANK_BACK_SPEED,
   BULLET_SPEED, BULLET_SHOOT_COOLDOWN, BULLET_WALL_PUSH, BULLET_WALL_COOLDOWN,
   AMMO_MAX, AMMO_REFILL_INTERVAL,
+  SHIELD_DURATION, RAPID_FIRE_DURATION,
+  ROCKET_TURN_SPEED, LASER_LIFETIME, POWERUP_RADIUS,
 } from '../config';
 import { InputManager } from '../systems/InputManager';
 import { generateMaze } from '../systems/MazeGenerator';
@@ -15,6 +17,11 @@ import { SoundManager } from '../systems/SoundManager';
 import { Wall } from '../objects/Wall';
 import { Tank } from '../objects/Tank';
 import { Bullet, isOwnerSafe } from '../objects/Bullet';
+import { PowerUpType, POWERUP_VISUALS } from '../enums/PowerUpType';
+import { PowerUpManager } from '../systems/PowerUpManager';
+import { getEffectiveCooldown, createBulletsForShot, fireLaser, fireRocket, placeMine, fireShotgun } from '../systems/PowerUpEffects';
+import { Rocket } from '../objects/Rocket';
+import { Mine } from '../objects/Mine';
 
 enum RoundState {
   GENERATING = 'GENERATING',
@@ -38,6 +45,13 @@ export class GameScene extends Phaser.Scene {
   private ammoBarP1!: Phaser.GameObjects.Graphics;
   private ammoBarP2!: Phaser.GameObjects.Graphics;
   private soundManager!: SoundManager;
+  private powerUpManager!: PowerUpManager;
+  private rockets: Rocket[] = [];
+  private mines: Mine[] = [];
+  private laserGraphics: Phaser.GameObjects.Graphics | null = null;
+  private laserTimer: number = 0;
+  private laserHitPlayerId: number | null = null;
+  private collectionText!: Phaser.GameObjects.Text;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -64,6 +78,28 @@ export class GameScene extends Phaser.Scene {
     this.ammoBarP1 = this.add.graphics().setDepth(100);
     this.ammoBarP2 = this.add.graphics().setDepth(100);
 
+    this.collectionText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 50, '', {
+      fontSize: '20px',
+      color: '#ffff00',
+      fontFamily: 'monospace',
+    }).setOrigin(0.5).setDepth(100).setAlpha(0);
+
+    this.rockets = [];
+    this.mines = [];
+    this.laserGraphics = null;
+    this.laserTimer = 0;
+
+    this.events.on('powerup-collected', (data: { playerId: number; type: PowerUpType }) => {
+      this.soundManager.powerUpPickup();
+      const visual = POWERUP_VISUALS[data.type];
+      this.collectionText.setText(visual.label);
+      this.collectionText.setColor('#' + visual.color.toString(16).padStart(6, '0'));
+      this.collectionText.setAlpha(1);
+      this.time.delayedCall(1000, () => {
+        this.collectionText.setAlpha(0);
+      });
+    });
+
     this.startRound();
   }
 
@@ -76,6 +112,12 @@ export class GameScene extends Phaser.Scene {
     this.tanks = [];
     for (const bullet of this.bullets) bullet.destroy();
     this.bullets = [];
+    for (const rocket of this.rockets) rocket.destroy();
+    this.rockets = [];
+    for (const mine of this.mines) mine.destroy();
+    this.mines = [];
+    if (this.laserGraphics) { this.laserGraphics.destroy(); this.laserGraphics = null; }
+    this.laserTimer = 0;
 
     const maze = generateMaze(MAZE_COLS, MAZE_ROWS, CELL_SIZE, WALL_THICKNESS, WALL_REMOVE_RATIO, SPAWN_CLEAR_RADIUS);
     this.wallData = maze.walls;
@@ -86,6 +128,8 @@ export class GameScene extends Phaser.Scene {
 
     this.tanks.push(new Tank(this, maze.spawn1.x, maze.spawn1.y, 0, 0));
     this.tanks.push(new Tank(this, maze.spawn2.x, maze.spawn2.y, Math.PI, 1));
+
+    this.powerUpManager = new PowerUpManager(this, this.wallData, this.tanks);
 
     this.roundState = RoundState.COUNTDOWN;
     this.statusText.setText('READY');
@@ -117,6 +161,7 @@ export class GameScene extends Phaser.Scene {
     if (this.roundState !== RoundState.PLAYING) return;
 
     this.drawAmmoBars();
+    this.drawPowerUpHUD();
 
     const dt = Math.min(delta / 1000, MAX_DT);
     const currentTimeMs = this.time.now;
@@ -132,6 +177,109 @@ export class GameScene extends Phaser.Scene {
 
     this.handleShoot(this.tanks[0], p1.shoot, currentTimeMs);
     this.handleShoot(this.tanks[1], p2.shoot, currentTimeMs);
+
+    // Power-up manager
+    this.powerUpManager.update(dt, this.time.now);
+
+    // Passive timer tick
+    for (const tank of this.tanks) {
+      this.powerUpManager.updatePassiveTimers(tank, dt);
+    }
+
+    // Laser timer
+    if (this.laserTimer > 0) {
+      this.laserTimer -= dt;
+      if (this.laserTimer <= 0 && this.laserGraphics) {
+        this.laserGraphics.destroy();
+        this.laserGraphics = null;
+        // Apply laser damage
+        if (this.laserHitPlayerId !== null) {
+          const target = this.tanks.find(t => t.playerId === this.laserHitPlayerId);
+          if (target && target.alive) {
+            if (target.shieldActive) {
+              target.shieldActive = false;
+              target.passiveEffects.delete(PowerUpType.Shield);
+              target.passiveTimers.delete(PowerUpType.Shield);
+              this.soundManager.shieldBreak();
+            } else {
+              this.resolveRound([this.laserHitPlayerId]);
+            }
+          }
+          this.laserHitPlayerId = null;
+        }
+      }
+    }
+
+    // Update rockets
+    for (const rocket of this.rockets) {
+      if (!rocket.active) continue;
+      const target = this.tanks.find(t => t.alive && t.playerId !== rocket.ownerId);
+      if (target) {
+        rocket.update(dt, target.x, target.y, ROCKET_TURN_SPEED);
+      }
+    }
+
+    // Rocket-wall collision (explode on contact)
+    this.rockets = this.rockets.filter(rocket => {
+      if (!rocket.active) { rocket.destroy(); return false; }
+      for (const wd of this.wallData) {
+        if (circleRectOverlap(rocket.x, rocket.y, rocket.radius, wd.x, wd.y, wd.width, wd.height)) {
+          rocket.destroy();
+          this.soundManager.explosion();
+          return false;
+        }
+      }
+      return true;
+    });
+
+    // Rocket-tank collision
+    this.rockets = this.rockets.filter(rocket => {
+      if (!rocket.active) { rocket.destroy(); return false; }
+      for (const tank of this.tanks) {
+        if (!tank.alive || tank.playerId === rocket.ownerId) continue;
+        if (circleCircleOverlap(rocket.x, rocket.y, rocket.radius, tank.x, tank.y, tank.radius)) {
+          if (tank.shieldActive) {
+            tank.shieldActive = false;
+            tank.passiveEffects.delete(PowerUpType.Shield);
+            tank.passiveTimers.delete(PowerUpType.Shield);
+            this.soundManager.shieldBreak();
+            rocket.destroy();
+            return false;
+          }
+          this.resolveRound([tank.playerId]);
+          rocket.destroy();
+          return false;
+        }
+      }
+      return true;
+    });
+
+    // Update mines
+    for (const mine of this.mines) {
+      if (!mine.active) continue;
+      mine.update(dt);
+      // Check trigger (only for opponent)
+      for (const tank of this.tanks) {
+        if (!tank.alive || tank.playerId === mine.ownerId) continue;
+        if (circleCircleOverlap(mine.x, mine.y, mine.triggerRadius, tank.x, tank.y, tank.radius)) {
+          if (tank.shieldActive) {
+            tank.shieldActive = false;
+            tank.passiveEffects.delete(PowerUpType.Shield);
+            tank.passiveTimers.delete(PowerUpType.Shield);
+            this.soundManager.shieldBreak();
+          } else {
+            this.soundManager.mineExplode();
+            this.resolveRound([tank.playerId]);
+          }
+          mine.destroy();
+        }
+      }
+    }
+    this.mines = this.mines.filter(m => m.active);
+
+    // Handle use-power-up input
+    this.handleUsePowerUp(this.tanks[0], p1.usePowerUp);
+    this.handleUsePowerUp(this.tanks[1], p2.usePowerUp);
 
     // Tick bullet wall cooldowns
     for (const bullet of this.bullets) {
@@ -169,7 +317,15 @@ export class GameScene extends Phaser.Scene {
         if (!tank.alive) continue;
         if (bullet.state.ownerId === tank.playerId && isOwnerSafe(bullet.state, currentTimeMs)) continue;
         if (circleCircleOverlap(bullet.state.x, bullet.state.y, bullet.radius, tank.x, tank.y, tank.radius)) {
-          deadPlayers.push(tank.playerId);
+          if (tank.shieldActive) {
+            tank.shieldActive = false;
+            tank.passiveEffects.delete(PowerUpType.Shield);
+            tank.passiveTimers.delete(PowerUpType.Shield);
+            bullet.state.active = false;
+            this.soundManager.shieldBreak();
+          } else {
+            deadPlayers.push(tank.playerId);
+          }
         }
       }
     }
@@ -223,17 +379,17 @@ export class GameScene extends Phaser.Scene {
     if (tank.shootCooldown > 0) return;
     if (tank.ammo <= 0) return;
 
-    const tip = tank.getBarrelTip();
-    const vx = Math.cos(tank.rotation) * BULLET_SPEED;
-    const vy = Math.sin(tank.rotation) * BULLET_SPEED;
-    const bullet = new Bullet(this, tip.x, tip.y, vx, vy, tank.playerId, currentTimeMs / 1000);
-    this.bullets.push(bullet);
+    const cooldown = getEffectiveCooldown(tank);
+    const bullets = createBulletsForShot(this, tank, currentTimeMs);
+    for (const bullet of bullets) {
+      this.bullets.push(bullet);
+    }
     this.soundManager.shoot();
     tank.ammo--;
-    tank.shootCooldown = BULLET_SHOOT_COOLDOWN;
+    tank.shootCooldown = cooldown;
 
     this.time.addEvent({
-      delay: BULLET_SHOOT_COOLDOWN * 1000,
+      delay: cooldown * 1000,
       callback: () => { tank.shootCooldown = 0; },
     });
   }
@@ -281,6 +437,12 @@ export class GameScene extends Phaser.Scene {
 
   private resolveRound(deadPlayers: number[]): void {
     this.roundState = RoundState.ROUND_OVER;
+    this.powerUpManager.clearAll();
+    for (const rocket of this.rockets) rocket.destroy();
+    this.rockets = [];
+    for (const mine of this.mines) mine.destroy();
+    this.mines = [];
+    if (this.laserGraphics) { this.laserGraphics.destroy(); this.laserGraphics = null; }
     const uniqueDead = [...new Set(deadPlayers)];
 
     if (uniqueDead.length === 2) {
@@ -346,5 +508,91 @@ export class GameScene extends Phaser.Scene {
     }
     this.ammoBarP2.lineStyle(border, 0x888888, 1);
     this.ammoBarP2.strokeRect(GAME_WIDTH - 90, 50, barWidth, barHeight);
+  }
+
+  private handleUsePowerUp(tank: Tank, usePressed: boolean): void {
+    if (!usePressed) return;
+    if (!tank.heldPowerUp) return;
+    if (POWERUP_VISUALS[tank.heldPowerUp].passive) return;
+
+    const type = tank.heldPowerUp;
+    tank.heldPowerUp = null;
+
+    switch (type) {
+      case PowerUpType.Laser: {
+        const result = fireLaser(this, tank, this.wallData, this.tanks, this.soundManager);
+        this.laserGraphics = result.graphics;
+        this.laserTimer = LASER_LIFETIME;
+        this.laserHitPlayerId = result.hitPlayerId;
+        break;
+      }
+      case PowerUpType.Rocket: {
+        const rocket = fireRocket(this, tank);
+        this.rockets.push(rocket);
+        this.soundManager.rocketFire();
+        break;
+      }
+      case PowerUpType.Mine: {
+        const mine = placeMine(this, tank, this.mines.find(m => m.ownerId === tank.playerId && m.active) ?? null);
+        this.mines.push(mine);
+        mine.setAlphaForOwner(true);
+        this.soundManager.minePlace();
+        break;
+      }
+      case PowerUpType.Shotgun: {
+        const bullets = fireShotgun(this, tank, this.time.now);
+        for (const b of bullets) this.bullets.push(b);
+        this.soundManager.shotgunFire();
+        break;
+      }
+    }
+  }
+
+  private drawPowerUpHUD(): void {
+    // P1 HUD - left side
+    if (this.tanks[0] && this.tanks[0].heldPowerUp) {
+      const tank = this.tanks[0];
+      const visual = POWERUP_VISUALS[tank.heldPowerUp!];
+      const x = 10;
+      this.ammoBarP1.fillStyle(0x000000, 0.6);
+      this.ammoBarP1.fillRect(x, 65, 24, 24);
+      this.ammoBarP1.fillStyle(visual.color, 1);
+      this.ammoBarP1.fillCircle(x + 12, 77, 8);
+      this.ammoBarP1.lineStyle(1, 0xffffff, 0.5);
+      this.ammoBarP1.strokeRect(x, 65, 24, 24);
+
+      if (visual.passive && tank.passiveTimers.has(tank.heldPowerUp!)) {
+        const remaining = tank.passiveTimers.get(tank.heldPowerUp!)!;
+        const maxDuration = tank.heldPowerUp === PowerUpType.Shield ? SHIELD_DURATION : RAPID_FIRE_DURATION;
+        const ratio = remaining / maxDuration;
+        this.ammoBarP1.fillStyle(0x333333, 1);
+        this.ammoBarP1.fillRect(x, 90, 24, 4);
+        this.ammoBarP1.fillStyle(visual.color, 1);
+        this.ammoBarP1.fillRect(x, 90, 24 * ratio, 4);
+      }
+    }
+
+    // P2 HUD - right side
+    if (this.tanks[1] && this.tanks[1].heldPowerUp) {
+      const tank = this.tanks[1];
+      const visual = POWERUP_VISUALS[tank.heldPowerUp!];
+      const x = GAME_WIDTH - 34;
+      this.ammoBarP2.fillStyle(0x000000, 0.6);
+      this.ammoBarP2.fillRect(x, 65, 24, 24);
+      this.ammoBarP2.fillStyle(visual.color, 1);
+      this.ammoBarP2.fillCircle(x + 12, 77, 8);
+      this.ammoBarP2.lineStyle(1, 0xffffff, 0.5);
+      this.ammoBarP2.strokeRect(x, 65, 24, 24);
+
+      if (visual.passive && tank.passiveTimers.has(tank.heldPowerUp!)) {
+        const remaining = tank.passiveTimers.get(tank.heldPowerUp!)!;
+        const maxDuration = tank.heldPowerUp === PowerUpType.Shield ? SHIELD_DURATION : RAPID_FIRE_DURATION;
+        const ratio = remaining / maxDuration;
+        this.ammoBarP2.fillStyle(0x333333, 1);
+        this.ammoBarP2.fillRect(x, 90, 24, 4);
+        this.ammoBarP2.fillStyle(visual.color, 1);
+        this.ammoBarP2.fillRect(x, 90, 24 * ratio, 4);
+      }
+    }
   }
 }
