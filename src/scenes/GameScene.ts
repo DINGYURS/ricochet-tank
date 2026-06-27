@@ -96,7 +96,6 @@ export class GameScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     this.updateScoreText();
-    this.drawAmmoBars();
 
     if (this.inputManager.isEscapePressed()) {
       this.scene.start('MenuScene');
@@ -104,6 +103,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (this.roundState !== RoundState.PLAYING) return;
+
+    this.drawAmmoBars();
 
     const dt = Math.min(delta / 1000, MAX_DT);
     const currentTimeMs = this.time.now;
