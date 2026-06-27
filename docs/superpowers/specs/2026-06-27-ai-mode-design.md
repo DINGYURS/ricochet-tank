@@ -1,7 +1,7 @@
 # AI Mode Design Spec
 
 **Date:** 2026-06-27
-**Status:** Draft
+**Status:** Approved
 **Game:** Ricochet Tank (Phaser 3 + TypeScript)
 
 ---
@@ -124,7 +124,7 @@ Each frame, the AI evaluates conditions top-down:
 
 ```
 1. threat = detectIncomingProjectile()
-   → if (threat && threat.distance < dodgeThreshold[diffficulty]) → DODGE
+   → if (threat && threat.distance < dodgeThreshold[difficulty]) → DODGE
 
 2. opponent = detectOpponent()
    → if (opponent && aimAligned(opponent) && inRange(opponent)) → ATTACK
@@ -254,7 +254,7 @@ Higher value = higher priority to collect:
 ### State Indicator
 
 - Display current AI state as text above the tank
-- Text format: `[巡視]` / `[追撃]` / `[攻撃]` / `[躲避]` / `[拾取]`
+- Text format: `[巡逻]` / `[追击]` / `[攻击]` / `[躲避]` / `[拾取]`
 - Uses Phaser `Text` object, positioned 20px above tank center
 - Follows tank movement, updates when state changes
 - Semi-transparent background for readability
@@ -267,13 +267,14 @@ Higher value = higher priority to collect:
 
 ## Map Size Variants
 
-| Size | Columns × Rows | Cell Size | Canvas Area | Wall Removal |
-|------|---------------|-----------|-------------|-------------|
+| Size | Columns × Rows | Cell Size | Grid Area (px) | Wall Removal |
+|------|---------------|-----------|----------------|-------------|
 | Small (小) | 7 × 5 | 70px | 490 × 350 | 20% |
 | Medium (中) | 10 × 8 | 70px | 700 × 560 | 20% |
-| Large (大) | 12 × 10 | 70px | 840 × 700 | 20% |
+| Large (大) | 12 × 10 | 56px | 672 × 560 | 20% |
 
-- Canvas size stays 800×600; smaller maps are centered, larger maps are scaled to fit
+- Canvas size stays 800×600; all maps are centered within the canvas
+- Large map uses reduced cell size (56px) to fit within canvas while providing more cells
 - Spawn points remain at opposite corners (top-left for P1, bottom-right for P2)
 - AI ray-casting distance automatically scales with map size
 
