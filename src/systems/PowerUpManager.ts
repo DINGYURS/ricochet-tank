@@ -5,6 +5,7 @@ import {
   POWERUP_SPAWN_INTERVAL_MIN, POWERUP_SPAWN_INTERVAL_MAX,
   POWERUP_MAX_ON_MAP, POWERUP_DESPAWN_TIME,
   POWERUP_RADIUS, MAZE_COLS, MAZE_ROWS, CELL_SIZE,
+  SHIELD_DURATION, RAPID_FIRE_DURATION, DOUBLE_SHOT_DURATION,
 } from '../config';
 import { Tank } from '../objects/Tank';
 import { circleCircleOverlap } from '../utils/math';
@@ -152,13 +153,13 @@ export class PowerUpManager {
     switch (type) {
       case PowerUpType.Shield:
         tank.shieldActive = true;
-        duration = 15;
+        duration = SHIELD_DURATION;
         break;
       case PowerUpType.RapidFire:
-        duration = 10;
+        duration = RAPID_FIRE_DURATION;
         break;
       case PowerUpType.DoubleShot:
-        duration = 10;
+        duration = DOUBLE_SHOT_DURATION;
         break;
     }
     tank.passiveTimers.set(type, duration);

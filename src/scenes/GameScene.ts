@@ -6,7 +6,7 @@ import {
   TANK_ROTATE_SPEED, TANK_MOVE_SPEED, TANK_BACK_SPEED,
   BULLET_SPEED, BULLET_SHOOT_COOLDOWN, BULLET_WALL_PUSH, BULLET_WALL_COOLDOWN,
   AMMO_MAX, AMMO_REFILL_INTERVAL,
-  SHIELD_DURATION, RAPID_FIRE_DURATION,
+  SHIELD_DURATION, RAPID_FIRE_DURATION, DOUBLE_SHOT_DURATION,
   ROCKET_TURN_SPEED, LASER_LIFETIME, POWERUP_RADIUS,
 } from '../config';
 import { InputManager } from '../systems/InputManager';
@@ -219,9 +219,10 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Rocket-wall collision (explode on contact)
+    // Rocket collision: wall (explode) and tank (damage/shield)
     this.rockets = this.rockets.filter(rocket => {
-      if (!rocket.active) { rocket.destroy(); return false; }
+      if (!rocket.active) return false;
+      // Wall collision — explode
       for (const wd of this.wallData) {
         if (circleRectOverlap(rocket.x, rocket.y, rocket.radius, wd.x, wd.y, wd.width, wd.height)) {
           rocket.destroy();
@@ -229,12 +230,7 @@ export class GameScene extends Phaser.Scene {
           return false;
         }
       }
-      return true;
-    });
-
-    // Rocket-tank collision
-    this.rockets = this.rockets.filter(rocket => {
-      if (!rocket.active) { rocket.destroy(); return false; }
+      // Tank collision
       for (const tank of this.tanks) {
         if (!tank.alive || tank.playerId === rocket.ownerId) continue;
         if (circleCircleOverlap(rocket.x, rocket.y, rocket.radius, tank.x, tank.y, tank.radius)) {
@@ -243,10 +239,9 @@ export class GameScene extends Phaser.Scene {
             tank.passiveEffects.delete(PowerUpType.Shield);
             tank.passiveTimers.delete(PowerUpType.Shield);
             this.soundManager.shieldBreak();
-            rocket.destroy();
-            return false;
+          } else {
+            this.resolveRound([tank.playerId]);
           }
-          this.resolveRound([tank.playerId]);
           rocket.destroy();
           return false;
         }
@@ -535,7 +530,6 @@ export class GameScene extends Phaser.Scene {
       case PowerUpType.Mine: {
         const mine = placeMine(this, tank, this.mines.find(m => m.ownerId === tank.playerId && m.active) ?? null);
         this.mines.push(mine);
-        mine.setAlphaForOwner(true);
         this.soundManager.minePlace();
         break;
       }
@@ -545,6 +539,15 @@ export class GameScene extends Phaser.Scene {
         this.soundManager.shotgunFire();
         break;
       }
+    }
+  }
+
+  private getPassiveMaxDuration(type: PowerUpType): number {
+    switch (type) {
+      case PowerUpType.Shield: return SHIELD_DURATION;
+      case PowerUpType.RapidFire: return RAPID_FIRE_DURATION;
+      case PowerUpType.DoubleShot: return DOUBLE_SHOT_DURATION;
+      default: return 10;
     }
   }
 
@@ -563,7 +566,7 @@ export class GameScene extends Phaser.Scene {
 
       if (visual.passive && tank.passiveTimers.has(tank.heldPowerUp!)) {
         const remaining = tank.passiveTimers.get(tank.heldPowerUp!)!;
-        const maxDuration = tank.heldPowerUp === PowerUpType.Shield ? SHIELD_DURATION : RAPID_FIRE_DURATION;
+        const maxDuration = this.getPassiveMaxDuration(tank.heldPowerUp!);
         const ratio = remaining / maxDuration;
         this.ammoBarP1.fillStyle(0x333333, 1);
         this.ammoBarP1.fillRect(x, 90, 24, 4);
@@ -586,7 +589,7 @@ export class GameScene extends Phaser.Scene {
 
       if (visual.passive && tank.passiveTimers.has(tank.heldPowerUp!)) {
         const remaining = tank.passiveTimers.get(tank.heldPowerUp!)!;
-        const maxDuration = tank.heldPowerUp === PowerUpType.Shield ? SHIELD_DURATION : RAPID_FIRE_DURATION;
+        const maxDuration = this.getPassiveMaxDuration(tank.heldPowerUp!);
         const ratio = remaining / maxDuration;
         this.ammoBarP2.fillStyle(0x333333, 1);
         this.ammoBarP2.fillRect(x, 90, 24, 4);
