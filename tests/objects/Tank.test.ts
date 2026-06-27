@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { computeTankMovement } from '../../src/objects/Tank';
-import { AMMO_MAX } from '../../src/config';
+import { AMMO_MAX, AMMO_REFILL_INTERVAL } from '../../src/config';
 
 describe('computeTankMovement', () => {
   it('moves forward along rotation angle', () => {
@@ -35,25 +35,24 @@ describe('computeTankMovement', () => {
 describe('Tank ammo', () => {
   it('starts with AMMO_MAX ammo', () => {
     const tank = { ammo: AMMO_MAX, ammoRefillTimer: 0 } as any;
-    expect(tank.ammo).toBe(10);
+    expect(tank.ammo).toBe(AMMO_MAX);
     expect(tank.ammoRefillTimer).toBe(0);
   });
 
   it('decrements ammo when shot', () => {
     const tank = { ammo: AMMO_MAX, ammoRefillTimer: 0 } as any;
     tank.ammo--;
-    expect(tank.ammo).toBe(9);
+    expect(tank.ammo).toBe(AMMO_MAX - 1);
   });
 
   it('refills ammo when timer exceeds interval', () => {
-    const AMMO_REFILL_INTERVAL = 180;
     const tank = { ammo: 3, ammoRefillTimer: 0 } as any;
-    tank.ammoRefillTimer += 180;
+    tank.ammoRefillTimer += AMMO_REFILL_INTERVAL;
     if (tank.ammoRefillTimer >= AMMO_REFILL_INTERVAL) {
       tank.ammo = AMMO_MAX;
       tank.ammoRefillTimer = 0;
     }
-    expect(tank.ammo).toBe(10);
+    expect(tank.ammo).toBe(AMMO_MAX);
     expect(tank.ammoRefillTimer).toBe(0);
   });
 });
