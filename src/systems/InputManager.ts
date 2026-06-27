@@ -6,6 +6,7 @@ export interface PlayerInput {
   rotateLeft: boolean;
   rotateRight: boolean;
   shoot: boolean;
+  usePowerUp: boolean;
 }
 
 export class InputManager {
@@ -21,6 +22,8 @@ export class InputManager {
     SPACE: Phaser.Input.Keyboard.Key;
     ENTER: Phaser.Input.Keyboard.Key;
     ESC: Phaser.Input.Keyboard.Key;
+    E: Phaser.Input.Keyboard.Key;
+    PERIOD: Phaser.Input.Keyboard.Key;
   };
 
   constructor(scene: Phaser.Scene) {
@@ -37,6 +40,8 @@ export class InputManager {
       SPACE: kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
       ENTER: kb.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER),
       ESC: kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC),
+      E: kb.addKey(Phaser.Input.Keyboard.KeyCodes.E),
+      PERIOD: kb.addKey(Phaser.Input.Keyboard.KeyCodes.PERIOD),
     };
 
     kb.addCapture([
@@ -56,6 +61,7 @@ export class InputManager {
       rotateLeft: this.keys.A.isDown,
       rotateRight: this.keys.D.isDown,
       shoot: Phaser.Input.Keyboard.JustDown(this.keys.SPACE),
+      usePowerUp: Phaser.Input.Keyboard.JustDown(this.keys.E),
     };
   }
 
@@ -66,6 +72,7 @@ export class InputManager {
       rotateLeft: this.keys.LEFT.isDown,
       rotateRight: this.keys.RIGHT.isDown,
       shoot: Phaser.Input.Keyboard.JustDown(this.keys.ENTER),
+      usePowerUp: Phaser.Input.Keyboard.JustDown(this.keys.PERIOD),
     };
   }
 
