@@ -4,6 +4,7 @@ import {
   TANK_MOVE_SPEED, TANK_BACK_SPEED, TANK_ROTATE_SPEED,
   PIXEL_SIZE, TANK_GRID_SIZE, AMMO_MAX,
 } from '../config';
+import { PowerUpType } from '../enums/PowerUpType';
 
 // 16x16 pixel tank pointing RIGHT, 0=transparent, 1=body, 2=track, 3=turret
 // At rotation=0 (right/+X), barrel points right
@@ -92,6 +93,13 @@ export class Tank {
   shootCooldown: number = 0;
   ammo: number = AMMO_MAX;
   ammoRefillTimer: number = 0;
+
+  // Power-up state
+  heldPowerUp: PowerUpType | null = null;
+  passiveEffects: Set<PowerUpType> = new Set();
+  passiveTimers: Map<PowerUpType, number> = new Map();
+  shieldActive: boolean = false;
+
   playerId: number;
 
   private scene: Phaser.Scene;
@@ -135,6 +143,12 @@ export class Tank {
       }
     }
 
+    // Draw shield ring if active (inside transform so it rotates with tank)
+    if (this.shieldActive) {
+      this.bodyGraphics.lineStyle(2, 0x4488ff, 0.7);
+      this.bodyGraphics.strokeCircle(0, 0, this.radius + 4);
+    }
+
     this.bodyGraphics.restore();
   }
 
@@ -165,6 +179,13 @@ export class Tank {
       x: this.x + Math.cos(this.rotation) * offset,
       y: this.y + Math.sin(this.rotation) * offset,
     };
+  }
+
+  clearPowerUps(): void {
+    this.heldPowerUp = null;
+    this.passiveEffects.clear();
+    this.passiveTimers.clear();
+    this.shieldActive = false;
   }
 
   destroy(): void {
