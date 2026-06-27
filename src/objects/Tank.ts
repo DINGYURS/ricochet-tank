@@ -3,6 +3,7 @@ import {
   TANK_RADIUS, TANK_BODY_WIDTH, TANK_BODY_HEIGHT,
   TANK_BARREL_WIDTH, TANK_BARREL_HEIGHT,
   TANK_MOVE_SPEED, TANK_BACK_SPEED, TANK_ROTATE_SPEED,
+  AMMO_MAX,
 } from '../config';
 
 export interface TankMovementResult {
@@ -43,6 +44,8 @@ export class Tank {
   radius: number = TANK_RADIUS;
   alive: boolean = true;
   shootCooldown: number = 0;
+  ammo: number = AMMO_MAX;
+  ammoRefillTimer: number = 0;
   playerId: number;
 
   private scene: Phaser.Scene;
