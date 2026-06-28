@@ -22,6 +22,12 @@ import { PowerUpManager } from '../systems/PowerUpManager';
 import { getEffectiveCooldown, createBulletsForShot, fireLaser, fireRocket, placeMine, fireShotgun } from '../systems/PowerUpEffects';
 import { Rocket } from '../objects/Rocket';
 import { Mine } from '../objects/Mine';
+import { AIController } from '../systems/AIController';
+
+export interface GameSettings {
+  mode: 'pvp' | 'ai';
+  difficulty?: 'easy' | 'medium' | 'hard';
+}
 
 enum RoundState {
   GENERATING = 'GENERATING',
@@ -52,12 +58,16 @@ export class GameScene extends Phaser.Scene {
   private laserTimer: number = 0;
   private laserHitPlayerId: number | null = null;
   private collectionText!: Phaser.GameObjects.Text;
+  private settings: GameSettings = { mode: 'pvp' };
+  private aiController: AIController | null = null;
 
   constructor() {
     super({ key: 'GameScene' });
   }
 
-  create(): void {
+  create(settings?: GameSettings): void {
+    this.settings = settings ?? { mode: 'pvp' };
+    this.aiController = null;
     this.scoreP1 = 0;
     this.scoreP2 = 0;
     this.inputManager = new InputManager(this);
@@ -131,6 +141,10 @@ export class GameScene extends Phaser.Scene {
 
     this.powerUpManager = new PowerUpManager(this, this.wallData, this.tanks);
 
+    if (this.settings.mode === 'ai') {
+      this.aiController = new AIController(this.tanks[1], this.tanks[0], this.settings.difficulty ?? 'medium');
+    }
+
     this.roundState = RoundState.COUNTDOWN;
     this.statusText.setText('READY');
     this.updateScoreText();
@@ -166,7 +180,20 @@ export class GameScene extends Phaser.Scene {
     const currentTimeMs = this.time.now;
 
     const p1 = this.inputManager.getPlayer1Input();
-    const p2 = this.inputManager.getPlayer2Input();
+
+    let p2;
+    if (this.aiController) {
+      this.aiController.setWorldState(
+        this.bullets.map(b => b.state),
+        this.powerUpManager.getPowerUps().map(pu => ({ x: pu.x, y: pu.y, type: pu.type, active: pu.active })),
+        this.wallData,
+        GAME_WIDTH,
+        GAME_HEIGHT,
+      );
+      p2 = this.aiController.getInput(delta, this.time.now);
+    } else {
+      p2 = this.inputManager.getPlayer2Input();
+    }
 
     const rotateP1 = (p1.rotateLeft ? -1 : 0) + (p1.rotateRight ? 1 : 0);
     const rotateP2 = (p2.rotateLeft ? -1 : 0) + (p2.rotateRight ? 1 : 0);
@@ -444,7 +471,7 @@ export class GameScene extends Phaser.Scene {
       this.statusText.setText('DRAW!');
     } else if (uniqueDead.includes(0)) {
       this.scoreP2++;
-      this.statusText.setText('P2 Wins!');
+      this.statusText.setText(`${this.getOpponentLabel()} Wins!`);
     } else {
       this.scoreP1++;
       this.statusText.setText('P1 Wins!');
@@ -460,7 +487,7 @@ export class GameScene extends Phaser.Scene {
     this.time.delayedCall(ROUND_END_DELAY * 1000, () => {
       if (this.scoreP1 >= SCORE_TO_WIN || this.scoreP2 >= SCORE_TO_WIN) {
         this.roundState = RoundState.MATCH_OVER;
-        const winner = this.scoreP1 >= SCORE_TO_WIN ? 'Player 1' : 'Player 2';
+        const winner = this.scoreP1 >= SCORE_TO_WIN ? 'Player 1' : this.getOpponentLabel();
         this.statusText.setText(`${winner} Wins the Match!\n\nPress SPACE for Menu`);
         this.input.keyboard!.once('keydown-SPACE', () => {
           this.scene.start('MenuScene');
@@ -471,8 +498,16 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private getOpponentLabel(): string {
+    if (this.settings.mode === 'ai') {
+      const diff = this.settings.difficulty ?? 'medium';
+      return `AI (${diff.charAt(0).toUpperCase() + diff.slice(1)})`;
+    }
+    return 'P2';
+  }
+
   private updateScoreText(): void {
-    this.scoreText.setText(`P1: ${this.scoreP1}  |  P2: ${this.scoreP2}`);
+    this.scoreText.setText(`P1: ${this.scoreP1}  |  ${this.getOpponentLabel()}: ${this.scoreP2}`);
   }
 
   private handleUsePowerUp(tank: Tank, usePressed: boolean): void {
