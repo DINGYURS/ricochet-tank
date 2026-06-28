@@ -8,9 +8,9 @@ import {
 import { normalizeAngle, angleDiff, hasLineOfSight, rayIntersectsRect } from '../../utils/geometry';
 
 const FIRE_THRESHOLD = Math.PI / 12;
-const WALL_BLOCK_DISTANCE = 60;
-const PATH_SWEEP = Math.PI / 2;
-const PATH_RAY_COUNT = 6;
+const WALL_BLOCK_DISTANCE = 120;
+const PATH_SWEEP = Math.PI;       // scan full 180° each side (360° total)
+const PATH_RAY_COUNT = 12;        // more rays for better coverage
 
 export class ChaseState implements AIState {
   type = AIStateType.CHASE;
@@ -105,8 +105,9 @@ export class ChaseState implements AIState {
       }
 
       const openFraction = Math.min(closestT / scanDistance, 1);
-      const angularCloseness = 1 - Math.abs(offset) / PATH_SWEEP;
-      const score = openFraction * 0.7 + angularCloseness * 0.3;
+      // Heavily weight openness — only care about angle when paths are equally open
+      const angularCloseness = 1 - Math.min(Math.abs(offset) / Math.PI, 1);
+      const score = openFraction * 0.85 + angularCloseness * 0.15;
 
       if (score > bestScore) {
         bestScore = score;

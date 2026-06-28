@@ -7,8 +7,8 @@ import {
 import { normalizeAngle, angleDiff, dist, rayIntersectsRect } from '../../utils/geometry';
 
 const ROTATION_THRESHOLD = 0.1;
-const PATH_SWEEP = Math.PI / 2;
-const PATH_RAY_COUNT = 6;
+const PATH_SWEEP = Math.PI;       // scan full 180° each side (360° total)
+const PATH_RAY_COUNT = 12;        // more rays for better coverage
 const BULLET_THREAT_ANGLE = 0.6;
 const THREAT_DISTANCE = 200;
 
@@ -93,8 +93,8 @@ export class CollectState implements AIState {
       }
 
       const openFraction = Math.min(closestT / 200, 1);
-      const angularCloseness = 1 - Math.abs(offset) / PATH_SWEEP;
-      const score = openFraction * 0.7 + angularCloseness * 0.3;
+      const angularCloseness = 1 - Math.min(Math.abs(offset) / Math.PI, 1);
+      const score = openFraction * 0.85 + angularCloseness * 0.15;
 
       if (score > bestScore) {
         bestScore = score;
@@ -110,7 +110,7 @@ export class CollectState implements AIState {
     const dy = Math.sin(angle);
     for (const w of walls) {
       const t = rayIntersectsRect(ox, oy, dx, dy, w);
-      if (t !== null && t > 1 && t < 60) return true;
+      if (t !== null && t > 1 && t < 120) return true;
     }
     return false;
   }
