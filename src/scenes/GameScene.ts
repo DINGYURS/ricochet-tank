@@ -60,6 +60,7 @@ export class GameScene extends Phaser.Scene {
   private collectionText!: Phaser.GameObjects.Text;
   private settings: GameSettings = { mode: 'pvp' };
   private aiController: AIController | null = null;
+  private aiDebugGraphics: Phaser.GameObjects.Graphics | null = null;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -143,6 +144,18 @@ export class GameScene extends Phaser.Scene {
 
     if (this.settings.mode === 'ai') {
       this.aiController = new AIController(this.tanks[1], this.tanks[0], this.settings.difficulty ?? 'medium');
+      // Create debug graphics for AI path visualization
+      try {
+        if (this.aiDebugGraphics && typeof this.aiDebugGraphics.destroy === 'function') {
+          this.aiDebugGraphics.destroy();
+        }
+        this.aiDebugGraphics = null;
+        if (this.add && typeof this.add.graphics === 'function') {
+          this.aiDebugGraphics = this.add.graphics().setDepth(99);
+        }
+      } catch {
+        this.aiDebugGraphics = null;
+      }
     }
 
     this.roundState = RoundState.COUNTDOWN;
@@ -191,6 +204,8 @@ export class GameScene extends Phaser.Scene {
         GAME_HEIGHT,
       );
       p2 = this.aiController.getInput(delta, this.time.now);
+      // Draw AI debug path
+      this.drawAIDebugPath();
     } else {
       p2 = this.inputManager.getPlayer2Input();
     }
@@ -605,5 +620,49 @@ export class GameScene extends Phaser.Scene {
         this.ammoBarP2.fillRect(x, 90, 24 * ratio, 4);
       }
     }
+  }
+
+  private drawAIDebugPath(): void {
+    if (!this.aiDebugGraphics || !this.aiController) return;
+
+    this.aiDebugGraphics.clear();
+
+    const tank = this.tanks[1]; // AI tank
+    const target = this.aiController.debugTarget;
+    const state = this.aiController.debugState;
+
+    if (!target) return;
+
+    // Draw red dashed line from AI tank to target
+    this.aiDebugGraphics.lineStyle(2, 0xff0000, 0.8);
+
+    const dashLen = 8;
+    const gapLen = 6;
+    const dx = target.x - tank.x;
+    const dy = target.y - tank.y;
+    const totalLen = Math.sqrt(dx * dx + dy * dy);
+    const steps = Math.floor(totalLen / (dashLen + gapLen));
+
+    for (let i = 0; i < steps; i++) {
+      const t1 = (i * (dashLen + gapLen)) / totalLen;
+      const t2 = Math.min((i * (dashLen + gapLen) + dashLen) / totalLen, 1);
+
+      const x1 = tank.x + dx * t1;
+      const y1 = tank.y + dy * t1;
+      const x2 = tank.x + dx * t2;
+      const y2 = tank.y + dy * t2;
+
+      this.aiDebugGraphics.beginPath();
+      this.aiDebugGraphics.moveTo(x1, y1);
+      this.aiDebugGraphics.lineTo(x2, y2);
+      this.aiDebugGraphics.strokePath();
+    }
+
+    // Draw target circle
+    this.aiDebugGraphics.fillStyle(0xff0000, 0.6);
+    this.aiDebugGraphics.fillCircle(target.x, target.y, 5);
+
+    // Draw state label
+    this.aiDebugGraphics.fillStyle(0xff0000, 1);
   }
 }

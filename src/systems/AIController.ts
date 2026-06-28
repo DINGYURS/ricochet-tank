@@ -29,6 +29,10 @@ export class AIController {
   private states: Map<AIStateType, AIState>;
   private currentState: AIState;
 
+  // Debug info
+  public debugTarget: { x: number; y: number } | null = null;
+  public debugState: string = 'PATROL';
+
   // Timers
   private reactionTimer: number = 0;
   private decisionTimer: number = 0;
@@ -106,12 +110,56 @@ export class AIController {
     // Execute current state
     const output = this.currentState.execute(aiInput, dt);
 
+    // Update debug info
+    this.debugState = this.currentState.type;
+    this.updateDebugTarget(output, aiInput);
+
     // Override if stuck
     if (this.stuckTimer > 1.0) {
       return this.getStuckEscapeOutput(dt);
     }
 
     return output;
+  }
+
+  /**
+   * Compute the debug target point based on the current output.
+   * This shows where the AI is trying to go.
+   */
+  private updateDebugTarget(output: PlayerInput, input: AIInput): void {
+    const { selfPosition } = input;
+    const debugDist = 100;
+
+    // Compute the movement angle based on output
+    let moveAngle = input.selfRotation;
+
+    if (output.rotateLeft && !output.rotateRight) {
+      moveAngle -= Math.PI / 8;
+    } else if (output.rotateRight && !output.rotateLeft) {
+      moveAngle += Math.PI / 8;
+    }
+
+    if (output.backward && !output.forward) {
+      moveAngle += Math.PI; // reverse direction
+    }
+
+    this.debugTarget = {
+      x: selfPosition.x + Math.cos(moveAngle) * debugDist,
+      y: selfPosition.y + Math.sin(moveAngle) * debugDist,
+    };
+
+    // For specific states, show the actual target
+    if (this.currentState.type === AIStateType.CHASE && input.enemyPosition) {
+      // Show enemy position as target
+      this.debugTarget = { x: input.enemyPosition.x, y: input.enemyPosition.y };
+    } else if (this.currentState.type === AIStateType.ATTACK && input.enemyPosition) {
+      this.debugTarget = { x: input.enemyPosition.x, y: input.enemyPosition.y };
+    } else if (this.currentState.type === AIStateType.COLLECT) {
+      const pu = this.findNearestPowerUp(input);
+      if (pu) {
+        this.debugTarget = { x: pu.x, y: pu.y };
+      }
+    }
   }
 
   private buildAIInput(): AIInput {
