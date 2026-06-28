@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeTankMovement } from '../../src/objects/Tank';
+import { computeTankMovement, TANK_COLORS } from '../../src/objects/Tank';
 import { AMMO_MAX, AMMO_REFILL_INTERVAL } from '../../src/config';
 
 describe('computeTankMovement', () => {
@@ -54,5 +54,46 @@ describe('Tank ammo', () => {
     }
     expect(tank.ammo).toBe(AMMO_MAX);
     expect(tank.ammoRefillTimer).toBe(0);
+  });
+});
+
+describe('TANK_COLORS', () => {
+  it('defines P1 blue colors', () => {
+    expect(TANK_COLORS[0]).toEqual({ body: 0x4488ff, track: 0x2255aa, turret: 0x3366cc });
+  });
+
+  it('defines P2 red colors', () => {
+    expect(TANK_COLORS[1]).toEqual({ body: 0xff4444, track: 0xaa2222, turret: 0xcc3333 });
+  });
+
+  it('defines AI black colors', () => {
+    expect(TANK_COLORS[2]).toEqual({ body: 0x333333, track: 0x1a1a1a, turret: 0x222222 });
+  });
+});
+
+describe('Tank color parameter', () => {
+  it('TANK_COLORS entries all have body, track, turret', () => {
+    for (const key of Object.keys(TANK_COLORS)) {
+      const c = TANK_COLORS[Number(key)];
+      expect(c).toHaveProperty('body');
+      expect(c).toHaveProperty('track');
+      expect(c).toHaveProperty('turret');
+    }
+  });
+
+  it('custom color can be constructed as a plain object', () => {
+    const custom = { body: 0x00ff00, track: 0x00aa00, turret: 0x00cc00 };
+    expect(custom.body).toBe(0x00ff00);
+    expect(custom.track).toBe(0x00aa00);
+    expect(custom.turret).toBe(0x00cc00);
+  });
+
+  it('AI color (playerId 2) is darker than P1 and P2', () => {
+    const ai = TANK_COLORS[2];
+    const p1 = TANK_COLORS[0];
+    const p2 = TANK_COLORS[1];
+    // AI body should be darker (lower value) than P1 and P2
+    expect(ai.body).toBeLessThan(p1.body);
+    expect(ai.body).toBeLessThan(p2.body);
   });
 });

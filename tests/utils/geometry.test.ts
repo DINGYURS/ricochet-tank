@@ -6,6 +6,8 @@ import {
   hasLineOfSight,
   segmentIntersectsRect,
   predictBulletBounce,
+  findBlockingWall,
+  getWallEdgePoint,
 } from '../../src/utils/geometry';
 
 describe('normalizeAngle', () => {
@@ -101,5 +103,63 @@ describe('predictBulletBounce', () => {
     expect(result).not.toBeNull();
     expect(result!.vx).toBeCloseTo(0);
     expect(result!.vy).toBeCloseTo(-300);
+  });
+});
+
+describe('findBlockingWall', () => {
+  it('returns null when no wall blocks', () => {
+    const walls = [{ x: 200, y: 0, width: 10, height: 100, orientation: 'vertical' }];
+    const result = findBlockingWall({ x: 0, y: 50 }, Math.PI / 2, walls); // shooting upward, wall is to the right
+    expect(result).toBeNull();
+  });
+
+  it('finds the blocking wall', () => {
+    const wall = { x: 80, y: 0, width: 10, height: 100, orientation: 'vertical' };
+    const result = findBlockingWall({ x: 0, y: 50 }, 0, [wall]);
+    expect(result).not.toBeNull();
+    expect(result!.wall).toBe(wall);
+    expect(result!.distance).toBeCloseTo(80);
+  });
+
+  it('finds the closest wall when multiple block', () => {
+    const near = { x: 50, y: 0, width: 10, height: 100, orientation: 'vertical' };
+    const far = { x: 200, y: 0, width: 10, height: 100, orientation: 'vertical' };
+    const result = findBlockingWall({ x: 0, y: 50 }, 0, [far, near]);
+    expect(result).not.toBeNull();
+    expect(result!.wall).toBe(near);
+  });
+});
+
+describe('getWallEdgePoint', () => {
+  it('returns top edge for vertical wall when target is above', () => {
+    const wall = { x: 50, y: 100, width: 10, height: 100, orientation: 'vertical' };
+    const self = { x: 0, y: 150 };
+    const target = { x: 100, y: 50 }; // above the wall
+    const point = getWallEdgePoint(wall, self, target);
+    expect(point.y).toBeLessThan(wall.y); // should be above the wall
+  });
+
+  it('returns bottom edge for vertical wall when target is below', () => {
+    const wall = { x: 50, y: 100, width: 10, height: 100, orientation: 'vertical' };
+    const self = { x: 0, y: 150 };
+    const target = { x: 100, y: 250 }; // below the wall
+    const point = getWallEdgePoint(wall, self, target);
+    expect(point.y).toBeGreaterThan(wall.y + wall.height); // should be below the wall
+  });
+
+  it('returns left edge for horizontal wall when target is to the left', () => {
+    const wall = { x: 100, y: 50, width: 100, height: 10, orientation: 'horizontal' };
+    const self = { x: 150, y: 0 };
+    const target = { x: 50, y: 100 }; // left of the wall
+    const point = getWallEdgePoint(wall, self, target);
+    expect(point.x).toBeLessThan(wall.x); // should be left of the wall
+  });
+
+  it('returns right edge for horizontal wall when target is to the right', () => {
+    const wall = { x: 100, y: 50, width: 100, height: 10, orientation: 'horizontal' };
+    const self = { x: 150, y: 0 };
+    const target = { x: 250, y: 100 }; // right of the wall
+    const point = getWallEdgePoint(wall, self, target);
+    expect(point.x).toBeGreaterThan(wall.x + wall.width); // should be right of the wall
   });
 });

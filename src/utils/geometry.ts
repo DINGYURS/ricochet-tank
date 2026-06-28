@@ -165,3 +165,78 @@ export function rayIntersectsRect(
 
   return tmin >= 0 ? tmin : null;
 }
+
+/**
+ * Find the first wall that blocks a ray from `self` at `angle`.
+ * Returns the wall and the hit distance, or null if no wall is hit.
+ */
+export function findBlockingWall(
+  self: { x: number; y: number },
+  angle: number,
+  walls: Array<{ x: number; y: number; width: number; height: number; orientation: string }>,
+  maxDist: number = 500,
+): { wall: typeof walls[0]; distance: number } | null {
+  const dx = Math.cos(angle);
+  const dy = Math.sin(angle);
+
+  let closest: { wall: typeof walls[0]; distance: number } | null = null;
+  let closestT = Infinity;
+
+  for (const wall of walls) {
+    const t = rayIntersectsRect(self.x, self.y, dx, dy, wall);
+    if (t !== null && t > 1 && t < closestT && t < maxDist) {
+      closestT = t;
+      closest = { wall, distance: t };
+    }
+  }
+
+  return closest;
+}
+
+/**
+ * Get the edge point of a wall that is closest to `target` and reachable from `self`.
+ * Returns the point to navigate to in order to go around the wall.
+ */
+export function getWallEdgePoint(
+  wall: { x: number; y: number; width: number; height: number; orientation: string },
+  self: { x: number; y: number },
+  target: { x: number; y: number },
+): { x: number; y: number } {
+  // Get the 4 corners of the wall
+  const corners = [
+    { x: wall.x, y: wall.y },                              // top-left
+    { x: wall.x + wall.width, y: wall.y },                  // top-right
+    { x: wall.x, y: wall.y + wall.height },                  // bottom-left
+    { x: wall.x + wall.width, y: wall.y + wall.height },     // bottom-right
+  ];
+
+  // Get the 2 edge midpoints (more stable than corners)
+  let edges: { x: number; y: number }[];
+  if (wall.orientation === 'vertical') {
+    // Vertical wall: edges are top and bottom midpoints
+    edges = [
+      { x: wall.x + wall.width / 2, y: wall.y - 15 },           // top edge
+      { x: wall.x + wall.width / 2, y: wall.y + wall.height + 15 }, // bottom edge
+    ];
+  } else {
+    // Horizontal wall: edges are left and right midpoints
+    edges = [
+      { x: wall.x - 15, y: wall.y + wall.height / 2 },           // left edge
+      { x: wall.x + wall.width + 15, y: wall.y + wall.height / 2 }, // right edge
+    ];
+  }
+
+  // Pick the edge that is closer to the target
+  let bestEdge = edges[0];
+  let bestDist = dist(edges[0].x, edges[0].y, target.x, target.y);
+
+  for (let i = 1; i < edges.length; i++) {
+    const d = dist(edges[i].x, edges[i].y, target.x, target.y);
+    if (d < bestDist) {
+      bestDist = d;
+      bestEdge = edges[i];
+    }
+  }
+
+  return bestEdge;
+}

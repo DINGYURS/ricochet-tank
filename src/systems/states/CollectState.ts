@@ -4,11 +4,17 @@ import {
   type AIOutput,
   type AIState,
 } from '../../enums/AIState';
-import { normalizeAngle, angleDiff, dist, rayIntersectsRect } from '../../utils/geometry';
+import {
+  normalizeAngle,
+  angleDiff,
+  dist,
+  hasLineOfSight,
+  findBlockingWall,
+  getWallEdgePoint,
+  rayIntersectsRect,
+} from '../../utils/geometry';
 
 const ROTATION_THRESHOLD = 0.1;
-const PATH_SWEEP = Math.PI;       // scan full 180° each side (360° total)
-const PATH_RAY_COUNT = 12;        // more rays for better coverage
 const BULLET_THREAT_ANGLE = 0.6;
 const THREAT_DISTANCE = 200;
 
@@ -35,11 +41,20 @@ export class CollectState implements AIState {
     const powerUp = this.findNearestPowerUp(input);
     if (!powerUp) return noAction;
 
-    const targetAngle = this.findPathToTarget(
-      input.selfPosition, powerUp, input.walls,
-    );
+    // Check if direct path is clear
+    const directAngle = Math.atan2(powerUp.y - input.selfPosition.y, powerUp.x - input.selfPosition.x);
+    const directPathClear = hasLineOfSight(input.selfPosition, powerUp, input.walls);
 
-    const diff = angleDiff(input.selfRotation, targetAngle);
+    let steerAngle: number;
+
+    if (directPathClear) {
+      steerAngle = directAngle;
+    } else {
+      // Find path around wall
+      steerAngle = this.findPathAroundWall(input, powerUp);
+    }
+
+    const diff = angleDiff(input.selfRotation, steerAngle);
 
     return {
       forward: true,
@@ -53,6 +68,58 @@ export class CollectState implements AIState {
 
   exit(): void {}
 
+  /**
+   * Find a path around the blocking wall to reach the target.
+   */
+  private findPathAroundWall(
+    input: AIInput,
+    target: { x: number; y: number },
+  ): number {
+    const { selfPosition, walls } = input;
+
+    const directAngle = Math.atan2(target.y - selfPosition.y, target.x - selfPosition.x);
+
+    // Find the wall blocking our path
+    const blocking = findBlockingWall(selfPosition, directAngle, walls);
+
+    if (blocking) {
+      // Navigate to the edge of the blocking wall that's closer to the target
+      const edgePoint = getWallEdgePoint(blocking.wall, selfPosition, target);
+      return Math.atan2(edgePoint.y - selfPosition.y, edgePoint.x - selfPosition.x);
+    }
+
+    // Fallback: try perpendicular directions
+    const perpA = directAngle + Math.PI / 2;
+    const perpB = directAngle - Math.PI / 2;
+
+    const openA = this.measureOpenness(selfPosition, perpA, walls);
+    const openB = this.measureOpenness(selfPosition, perpB, walls);
+
+    return openA > openB ? perpA : perpB;
+  }
+
+  /**
+   * Measure how open a direction is (distance to nearest wall).
+   */
+  private measureOpenness(
+    self: { x: number; y: number },
+    angle: number,
+    walls: AIInput['walls'],
+  ): number {
+    const dx = Math.cos(angle);
+    const dy = Math.sin(angle);
+    let closest = 300;
+
+    for (const w of walls) {
+      const t = rayIntersectsRect(self.x, self.y, dx, dy, w);
+      if (t !== null && t > 0 && t < closest) {
+        closest = t;
+      }
+    }
+
+    return closest;
+  }
+
   private findNearestPowerUp(input: AIInput): { x: number; y: number } | null {
     let best: { x: number; y: number } | null = null;
     let bestDist = Infinity;
@@ -65,54 +132,6 @@ export class CollectState implements AIState {
       }
     }
     return best;
-  }
-
-  private findPathToTarget(
-    self: { x: number; y: number },
-    target: { x: number; y: number },
-    walls: AIInput['walls'],
-  ): number {
-    const directAngle = Math.atan2(target.y - self.y, target.x - self.x);
-
-    const blocked = this.isPathBlocked(self.x, self.y, directAngle, walls);
-    if (!blocked) return directAngle;
-
-    let bestAngle = directAngle;
-    let bestScore = -Infinity;
-
-    for (let i = -PATH_RAY_COUNT; i <= PATH_RAY_COUNT; i++) {
-      const offset = (i / PATH_RAY_COUNT) * PATH_SWEEP;
-      const angle = directAngle + offset;
-      const dx = Math.cos(angle);
-      const dy = Math.sin(angle);
-
-      let closestT = Infinity;
-      for (const w of walls) {
-        const t = rayIntersectsRect(self.x, self.y, dx, dy, w);
-        if (t !== null && t < closestT) closestT = t;
-      }
-
-      const openFraction = Math.min(closestT / 200, 1);
-      const angularCloseness = 1 - Math.min(Math.abs(offset) / Math.PI, 1);
-      const score = openFraction * 0.85 + angularCloseness * 0.15;
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestAngle = angle;
-      }
-    }
-
-    return bestAngle;
-  }
-
-  private isPathBlocked(ox: number, oy: number, angle: number, walls: AIInput['walls']): boolean {
-    const dx = Math.cos(angle);
-    const dy = Math.sin(angle);
-    for (const w of walls) {
-      const t = rayIntersectsRect(ox, oy, dx, dy, w);
-      if (t !== null && t > 1 && t < 120) return true;
-    }
-    return false;
   }
 
   private detectIncomingBullet(input: AIInput): boolean {

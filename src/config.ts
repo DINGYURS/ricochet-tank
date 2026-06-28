@@ -63,3 +63,19 @@ export const MAX_DT = 0.05;
 export const BG_COLOR = '#1a1a2e';
 export const WALL_COLOR = 0x555577;
 export const TEXT_COLOR = '#ffffff';
+
+// AI Difficulty
+export { AI_DIFFICULTY_PRESETS, AI_DODGE_THRESHOLD } from './systems/AIDifficulty';
+
+// Game Settings
+export type AIDifficulty = 'easy' | 'medium' | 'hard';
+
+export interface GameSettings {
+  mode: 'local' | 'ai';
+  aiDifficulty: AIDifficulty;
+}
+
+export const DEFAULT_GAME_SETTINGS: GameSettings = {
+  mode: 'local',
+  aiDifficulty: 'medium',
+};

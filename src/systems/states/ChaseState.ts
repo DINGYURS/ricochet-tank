@@ -5,12 +5,16 @@ import {
   type AIState,
   type AIDifficultyConfig,
 } from '../../enums/AIState';
-import { normalizeAngle, angleDiff, hasLineOfSight, rayIntersectsRect } from '../../utils/geometry';
+import {
+  normalizeAngle,
+  angleDiff,
+  hasLineOfSight,
+  findBlockingWall,
+  getWallEdgePoint,
+  rayIntersectsRect,
+} from '../../utils/geometry';
 
 const FIRE_THRESHOLD = Math.PI / 12;
-const WALL_BLOCK_DISTANCE = 120;
-const PATH_SWEEP = Math.PI;       // scan full 180° each side (360° total)
-const PATH_RAY_COUNT = 12;        // more rays for better coverage
 
 export class ChaseState implements AIState {
   type = AIStateType.CHASE;
@@ -38,22 +42,22 @@ export class ChaseState implements AIState {
       input.enemyPosition.x - input.selfPosition.x,
     );
 
-    const blocked = this.isPathBlocked(
-      input.selfPosition.x, input.selfPosition.y,
-      directAngle, input.walls,
-    );
+    // Check if we can see the enemy directly
+    const canSee = hasLineOfSight(input.selfPosition, input.enemyPosition, input.walls);
 
-    const steerAngle = blocked
-      ? this.findAlternativePath(
-          input.enemyPosition.x, input.enemyPosition.y,
-          input.selfPosition.x, input.selfPosition.y,
-          input.walls,
-        )
-      : directAngle;
+    let steerAngle: number;
+
+    if (canSee) {
+      // Direct path is clear - go straight toward enemy
+      steerAngle = directAngle;
+    } else {
+      // Path blocked by wall - use wall-following to navigate around
+      steerAngle = this.findPathAroundWall(input);
+    }
 
     const diff = angleDiff(input.selfRotation, steerAngle);
 
-    const canSee = hasLineOfSight(input.selfPosition, input.enemyPosition, input.walls);
+    // Only shoot when we can see the enemy and aim is aligned
     const aimDiff = Math.abs(angleDiff(input.selfRotation, directAngle));
     const shoot = canSee && aimDiff < FIRE_THRESHOLD && input.ammo > 0;
 
@@ -67,54 +71,57 @@ export class ChaseState implements AIState {
     };
   }
 
-  private isPathBlocked(ox: number, oy: number, angle: number, walls: AIInput['walls']): boolean {
-    const dx = Math.cos(angle);
-    const dy = Math.sin(angle);
-    for (const w of walls) {
-      const t = rayIntersectsRect(ox, oy, dx, dy, w);
-      if (t !== null && t > 1 && t < WALL_BLOCK_DISTANCE) {
-        return true;
-      }
+  /**
+   * Find a path around the blocking wall.
+   * Strategy: find the blocking wall, navigate to its edge closest to the enemy.
+   */
+  private findPathAroundWall(input: AIInput): number {
+    const { selfPosition, enemyPosition, walls } = input;
+
+    const directAngle = Math.atan2(
+      enemyPosition!.y - selfPosition.y,
+      enemyPosition!.x - selfPosition.x,
+    );
+
+    // Find the wall blocking our path
+    const blocking = findBlockingWall(selfPosition, directAngle, walls);
+
+    if (blocking) {
+      // Navigate to the edge of the blocking wall that's closer to the enemy
+      const edgePoint = getWallEdgePoint(blocking.wall, selfPosition, enemyPosition!);
+      return Math.atan2(edgePoint.y - selfPosition.y, edgePoint.x - selfPosition.x);
     }
-    return false;
+
+    // Fallback: if no specific wall found, try perpendicular directions
+    const perpA = directAngle + Math.PI / 2;
+    const perpB = directAngle - Math.PI / 2;
+
+    // Pick the perpendicular that's more open
+    const openA = this.measureOpenness(selfPosition, perpA, walls);
+    const openB = this.measureOpenness(selfPosition, perpB, walls);
+
+    return openA > openB ? perpA : perpB;
   }
 
-  private findAlternativePath(
-    targetX: number, targetY: number,
-    selfX: number, selfY: number,
+  /**
+   * Measure how open a direction is (distance to nearest wall).
+   */
+  private measureOpenness(
+    self: { x: number; y: number },
+    angle: number,
     walls: AIInput['walls'],
   ): number {
-    const directAngle = Math.atan2(targetY - selfY, targetX - selfX);
-    const scanDistance = 200;
+    const dx = Math.cos(angle);
+    const dy = Math.sin(angle);
+    let closest = 300;
 
-    let bestAngle = directAngle;
-    let bestScore = -Infinity;
-
-    for (let i = -PATH_RAY_COUNT; i <= PATH_RAY_COUNT; i++) {
-      const offset = (i / PATH_RAY_COUNT) * PATH_SWEEP;
-      const angle = directAngle + offset;
-      const dx = Math.cos(angle);
-      const dy = Math.sin(angle);
-
-      let closestT = Infinity;
-      for (const w of walls) {
-        const t = rayIntersectsRect(selfX, selfY, dx, dy, w);
-        if (t !== null && t < closestT) {
-          closestT = t;
-        }
-      }
-
-      const openFraction = Math.min(closestT / scanDistance, 1);
-      // Heavily weight openness — only care about angle when paths are equally open
-      const angularCloseness = 1 - Math.min(Math.abs(offset) / Math.PI, 1);
-      const score = openFraction * 0.85 + angularCloseness * 0.15;
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestAngle = angle;
+    for (const w of walls) {
+      const t = rayIntersectsRect(self.x, self.y, dx, dy, w);
+      if (t !== null && t > 0 && t < closest) {
+        closest = t;
       }
     }
 
-    return bestAngle;
+    return closest;
   }
 }

@@ -48,9 +48,10 @@ const TANK_PIXEL_GRID: number[][] = [
 ];
 
 // Colors per player: body, track, turret
-const TANK_COLORS: Record<number, { body: number; track: number; turret: number }> = {
+export const TANK_COLORS: Record<number, { body: number; track: number; turret: number }> = {
   0: { body: 0x4488ff, track: 0x2255aa, turret: 0x3366cc }, // P1 blue
   1: { body: 0xff4444, track: 0xaa2222, turret: 0xcc3333 }, // P2 red
+  2: { body: 0x333333, track: 0x1a1a1a, turret: 0x222222 }, // AI black
 };
 
 export interface TankMovementResult {
@@ -101,16 +102,26 @@ export class Tank {
   shieldActive: boolean = false;
 
   playerId: number;
+  color: { body: number; track: number; turret: number };
 
   private scene: Phaser.Scene;
   private bodyGraphics: Phaser.GameObjects.Graphics;
+  private stateText: Phaser.GameObjects.Text | null = null;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, rotation: number, playerId: number) {
+  constructor(
+    scene: Phaser.Scene,
+    x: number,
+    y: number,
+    rotation: number,
+    playerId: number,
+    color?: { body: number; track: number; turret: number },
+  ) {
     this.scene = scene;
     this.x = x;
     this.y = y;
     this.rotation = rotation;
     this.playerId = playerId;
+    this.color = color ?? TANK_COLORS[playerId] ?? TANK_COLORS[0];
 
     this.bodyGraphics = scene.add.graphics();
     this.draw();
@@ -122,7 +133,7 @@ export class Tank {
     this.bodyGraphics.translateCanvas(this.x, this.y);
     this.bodyGraphics.rotateCanvas(this.rotation);
 
-    const colors = TANK_COLORS[this.playerId];
+    const colors = this.color;
     const halfGrid = TANK_GRID_SIZE / 2;
 
     for (let row = 0; row < TANK_GRID_SIZE; row++) {
@@ -150,6 +161,11 @@ export class Tank {
     }
 
     this.bodyGraphics.restore();
+
+    // Update state indicator position
+    if (this.stateText) {
+      this.stateText.setPosition(this.x, this.y - 20);
+    }
   }
 
   update(dt: number, forward: boolean, backward: boolean, rotateInput: number): void {
@@ -188,7 +204,23 @@ export class Tank {
     this.shieldActive = false;
   }
 
+  setStateIndicator(text: string): void {
+    if (!this.stateText) {
+      this.stateText = this.scene.add.text(this.x, this.y - 20, text, {
+        fontSize: '10px',
+        color: '#ffffff',
+        align: 'center',
+      }).setOrigin(0.5);
+    } else {
+      this.stateText.setText(text);
+    }
+  }
+
   destroy(): void {
     this.bodyGraphics.destroy();
+    if (this.stateText) {
+      this.stateText.destroy();
+      this.stateText = null;
+    }
   }
 }
