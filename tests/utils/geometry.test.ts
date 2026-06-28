@@ -1,0 +1,105 @@
+import { describe, it, expect } from 'vitest';
+import {
+  normalizeAngle,
+  angleDiff,
+  dist,
+  hasLineOfSight,
+  segmentIntersectsRect,
+  predictBulletBounce,
+} from '../../src/utils/geometry';
+
+describe('normalizeAngle', () => {
+  it('returns angle in (-PI, PI]', () => {
+    expect(normalizeAngle(0)).toBe(0);
+    expect(normalizeAngle(Math.PI)).toBeCloseTo(Math.PI);
+    expect(normalizeAngle(-Math.PI)).toBeCloseTo(Math.PI);
+    expect(normalizeAngle(2 * Math.PI)).toBeCloseTo(0);
+    expect(normalizeAngle(3 * Math.PI)).toBeCloseTo(Math.PI);
+    expect(normalizeAngle(-3 * Math.PI)).toBeCloseTo(Math.PI);
+  });
+});
+
+describe('angleDiff', () => {
+  it('returns 0 for same angles', () => {
+    expect(angleDiff(1, 1)).toBeCloseTo(0);
+  });
+
+  it('returns PI for opposite angles', () => {
+    expect(angleDiff(0, Math.PI)).toBeCloseTo(Math.PI);
+    expect(angleDiff(Math.PI, 0)).toBeCloseTo(Math.PI);
+  });
+
+  it('handles wraparound correctly', () => {
+    expect(angleDiff(-Math.PI + 0.01, Math.PI - 0.01)).toBeCloseTo(-0.02, 5);
+  });
+});
+
+describe('dist', () => {
+  it('returns 0 for same point', () => {
+    expect(dist(0, 0, 0, 0)).toBe(0);
+  });
+
+  it('returns correct distance', () => {
+    expect(dist(0, 0, 3, 4)).toBe(5);
+    expect(dist(100, 100, 103, 104)).toBe(5);
+  });
+});
+
+describe('segmentIntersectsRect', () => {
+  it('returns true when segment crosses rect', () => {
+    const rect = { x: 50, y: 0, width: 10, height: 100 };
+    expect(segmentIntersectsRect(0, 50, 100, 50, rect)).toBe(true);
+  });
+
+  it('returns false when segment misses rect', () => {
+    const rect = { x: 50, y: 0, width: 10, height: 100 };
+    expect(segmentIntersectsRect(0, 200, 100, 200, rect)).toBe(false);
+  });
+
+  it('returns false when segment ends before rect', () => {
+    const rect = { x: 50, y: 0, width: 10, height: 100 };
+    expect(segmentIntersectsRect(0, 50, 40, 50, rect)).toBe(false);
+  });
+});
+
+describe('hasLineOfSight', () => {
+  it('returns true when no walls block', () => {
+    expect(hasLineOfSight({ x: 0, y: 50 }, { x: 100, y: 50 }, [])).toBe(true);
+  });
+
+  it('returns false when wall blocks', () => {
+    const walls = [{ x: 50, y: 0, width: 10, height: 100, orientation: 'vertical' }];
+    expect(hasLineOfSight({ x: 0, y: 50 }, { x: 100, y: 50 }, walls)).toBe(false);
+  });
+
+  it('returns true when wall is beside the line', () => {
+    const walls = [{ x: 50, y: 0, width: 10, height: 100, orientation: 'vertical' }];
+    expect(hasLineOfSight({ x: 0, y: 200 }, { x: 100, y: 200 }, walls)).toBe(true);
+  });
+});
+
+describe('predictBulletBounce', () => {
+  it('returns null when no wall hit', () => {
+    const bullet = { x: 0, y: 50, vx: 100, vy: 0 };
+    const walls: any[] = [];
+    expect(predictBulletBounce(bullet, walls, 1000)).toBeNull();
+  });
+
+  it('predicts horizontal bounce off vertical wall', () => {
+    const bullet = { x: 0, y: 50, vx: 300, vy: 0 };
+    const walls = [{ x: 80, y: 0, width: 10, height: 100, orientation: 'vertical' }];
+    const result = predictBulletBounce(bullet, walls, 200);
+    expect(result).not.toBeNull();
+    expect(result!.vx).toBeCloseTo(-300);
+    expect(result!.vy).toBeCloseTo(0);
+  });
+
+  it('predicts vertical bounce off horizontal wall', () => {
+    const bullet = { x: 50, y: 0, vx: 0, vy: 300 };
+    const walls = [{ x: 0, y: 80, width: 100, height: 10, orientation: 'horizontal' }];
+    const result = predictBulletBounce(bullet, walls, 200);
+    expect(result).not.toBeNull();
+    expect(result!.vx).toBeCloseTo(0);
+    expect(result!.vy).toBeCloseTo(-300);
+  });
+});
