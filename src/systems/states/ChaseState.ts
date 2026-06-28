@@ -21,12 +21,20 @@ export class ChaseState implements AIState {
 
   private config: AIDifficultyConfig;
 
+  /** Debug: waypoints the AI is navigating through */
+  public debugWaypoints: { x: number; y: number }[] = [];
+
   constructor(config: AIDifficultyConfig) {
     this.config = config;
   }
 
-  enter(): void {}
-  exit(): void {}
+  enter(): void {
+    this.debugWaypoints = [];
+  }
+
+  exit(): void {
+    this.debugWaypoints = [];
+  }
 
   execute(input: AIInput, dt: number): AIOutput {
     const idle: AIOutput = {
@@ -35,6 +43,8 @@ export class ChaseState implements AIState {
       shoot: false, usePowerUp: false,
     };
 
+    this.debugWaypoints = [];
+
     if (!input.enemyPosition) return idle;
 
     const directAngle = Math.atan2(
@@ -42,22 +52,26 @@ export class ChaseState implements AIState {
       input.enemyPosition.x - input.selfPosition.x,
     );
 
-    // Check if we can see the enemy directly
     const canSee = hasLineOfSight(input.selfPosition, input.enemyPosition, input.walls);
 
     let steerAngle: number;
 
     if (canSee) {
-      // Direct path is clear - go straight toward enemy
+      // Direct path - show straight line to enemy
       steerAngle = directAngle;
+      this.debugWaypoints = [
+        { x: input.selfPosition.x, y: input.selfPosition.y },
+        { x: input.enemyPosition.x, y: input.enemyPosition.y },
+      ];
     } else {
-      // Path blocked by wall - use wall-following to navigate around
-      steerAngle = this.findPathAroundWall(input);
+      // Path blocked - find waypoints around wall
+      const result = this.findPathAroundWall(input);
+      steerAngle = result.angle;
+      this.debugWaypoints = result.waypoints;
     }
 
     const diff = angleDiff(input.selfRotation, steerAngle);
 
-    // Only shoot when we can see the enemy and aim is aligned
     const aimDiff = Math.abs(angleDiff(input.selfRotation, directAngle));
     const shoot = canSee && aimDiff < FIRE_THRESHOLD && input.ammo > 0;
 
@@ -71,11 +85,7 @@ export class ChaseState implements AIState {
     };
   }
 
-  /**
-   * Find a path around the blocking wall.
-   * Strategy: find the blocking wall, navigate to its edge closest to the enemy.
-   */
-  private findPathAroundWall(input: AIInput): number {
+  private findPathAroundWall(input: AIInput): { angle: number; waypoints: { x: number; y: number }[] } {
     const { selfPosition, enemyPosition, walls } = input;
 
     const directAngle = Math.atan2(
@@ -83,29 +93,43 @@ export class ChaseState implements AIState {
       enemyPosition!.x - selfPosition.x,
     );
 
-    // Find the wall blocking our path
     const blocking = findBlockingWall(selfPosition, directAngle, walls);
 
     if (blocking) {
-      // Navigate to the edge of the blocking wall that's closer to the enemy
       const edgePoint = getWallEdgePoint(blocking.wall, selfPosition, enemyPosition!);
-      return Math.atan2(edgePoint.y - selfPosition.y, edgePoint.x - selfPosition.x);
+      const angle = Math.atan2(edgePoint.y - selfPosition.y, edgePoint.x - selfPosition.x);
+
+      // Path: self → edge point → enemy
+      return {
+        angle,
+        waypoints: [
+          { x: selfPosition.x, y: selfPosition.y },
+          { x: edgePoint.x, y: edgePoint.y },
+          { x: enemyPosition!.x, y: enemyPosition!.y },
+        ],
+      };
     }
 
-    // Fallback: if no specific wall found, try perpendicular directions
+    // Fallback
     const perpA = directAngle + Math.PI / 2;
     const perpB = directAngle - Math.PI / 2;
-
-    // Pick the perpendicular that's more open
     const openA = this.measureOpenness(selfPosition, perpA, walls);
     const openB = this.measureOpenness(selfPosition, perpB, walls);
+    const angle = openA > openB ? perpA : perpB;
+    const fallbackDist = 100;
 
-    return openA > openB ? perpA : perpB;
+    return {
+      angle,
+      waypoints: [
+        { x: selfPosition.x, y: selfPosition.y },
+        {
+          x: selfPosition.x + Math.cos(angle) * fallbackDist,
+          y: selfPosition.y + Math.sin(angle) * fallbackDist,
+        },
+      ],
+    };
   }
 
-  /**
-   * Measure how open a direction is (distance to nearest wall).
-   */
   private measureOpenness(
     self: { x: number; y: number },
     angle: number,

@@ -21,7 +21,12 @@ const THREAT_DISTANCE = 200;
 export class CollectState implements AIState {
   type = AIStateType.COLLECT;
 
-  enter(): void {}
+  /** Debug: waypoints the AI is navigating through */
+  public debugWaypoints: { x: number; y: number }[] = [];
+
+  enter(): void {
+    this.debugWaypoints = [];
+  }
 
   execute(input: AIInput, _dt: number): AIOutput {
     const noAction: AIOutput = {
@@ -29,6 +34,8 @@ export class CollectState implements AIState {
       rotateLeft: false, rotateRight: false,
       shoot: false, usePowerUp: false,
     };
+
+    this.debugWaypoints = [];
 
     if (this.detectIncomingBullet(input)) {
       return noAction;
@@ -41,17 +48,20 @@ export class CollectState implements AIState {
     const powerUp = this.findNearestPowerUp(input);
     if (!powerUp) return noAction;
 
-    // Check if direct path is clear
-    const directAngle = Math.atan2(powerUp.y - input.selfPosition.y, powerUp.x - input.selfPosition.x);
     const directPathClear = hasLineOfSight(input.selfPosition, powerUp, input.walls);
 
     let steerAngle: number;
 
     if (directPathClear) {
-      steerAngle = directAngle;
+      steerAngle = Math.atan2(powerUp.y - input.selfPosition.y, powerUp.x - input.selfPosition.x);
+      this.debugWaypoints = [
+        { x: input.selfPosition.x, y: input.selfPosition.y },
+        { x: powerUp.x, y: powerUp.y },
+      ];
     } else {
-      // Find path around wall
-      steerAngle = this.findPathAroundWall(input, powerUp);
+      const result = this.findPathAroundWall(input, powerUp);
+      steerAngle = result.angle;
+      this.debugWaypoints = result.waypoints;
     }
 
     const diff = angleDiff(input.selfRotation, steerAngle);
@@ -66,41 +76,54 @@ export class CollectState implements AIState {
     };
   }
 
-  exit(): void {}
+  exit(): void {
+    this.debugWaypoints = [];
+  }
 
-  /**
-   * Find a path around the blocking wall to reach the target.
-   */
   private findPathAroundWall(
     input: AIInput,
     target: { x: number; y: number },
-  ): number {
+  ): { angle: number; waypoints: { x: number; y: number }[] } {
     const { selfPosition, walls } = input;
 
     const directAngle = Math.atan2(target.y - selfPosition.y, target.x - selfPosition.x);
 
-    // Find the wall blocking our path
     const blocking = findBlockingWall(selfPosition, directAngle, walls);
 
     if (blocking) {
-      // Navigate to the edge of the blocking wall that's closer to the target
       const edgePoint = getWallEdgePoint(blocking.wall, selfPosition, target);
-      return Math.atan2(edgePoint.y - selfPosition.y, edgePoint.x - selfPosition.x);
+      const angle = Math.atan2(edgePoint.y - selfPosition.y, edgePoint.x - selfPosition.x);
+
+      return {
+        angle,
+        waypoints: [
+          { x: selfPosition.x, y: selfPosition.y },
+          { x: edgePoint.x, y: edgePoint.y },
+          { x: target.x, y: target.y },
+        ],
+      };
     }
 
-    // Fallback: try perpendicular directions
+    // Fallback
     const perpA = directAngle + Math.PI / 2;
     const perpB = directAngle - Math.PI / 2;
-
     const openA = this.measureOpenness(selfPosition, perpA, walls);
     const openB = this.measureOpenness(selfPosition, perpB, walls);
+    const angle = openA > openB ? perpA : perpB;
+    const fallbackDist = 100;
 
-    return openA > openB ? perpA : perpB;
+    return {
+      angle,
+      waypoints: [
+        { x: selfPosition.x, y: selfPosition.y },
+        {
+          x: selfPosition.x + Math.cos(angle) * fallbackDist,
+          y: selfPosition.y + Math.sin(angle) * fallbackDist,
+        },
+      ],
+    };
   }
 
-  /**
-   * Measure how open a direction is (distance to nearest wall).
-   */
   private measureOpenness(
     self: { x: number; y: number },
     angle: number,

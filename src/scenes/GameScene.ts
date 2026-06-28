@@ -627,42 +627,49 @@ export class GameScene extends Phaser.Scene {
 
     this.aiDebugGraphics.clear();
 
-    const tank = this.tanks[1]; // AI tank
-    const target = this.aiController.debugTarget;
-    const state = this.aiController.debugState;
+    const waypoints = this.aiController.debugWaypoints;
+    if (waypoints.length < 2) return;
 
-    if (!target) return;
-
-    // Draw red dashed line from AI tank to target
+    // Draw red dashed line through all waypoints
     this.aiDebugGraphics.lineStyle(2, 0xff0000, 0.8);
 
-    const dashLen = 8;
-    const gapLen = 6;
-    const dx = target.x - tank.x;
-    const dy = target.y - tank.y;
+    for (let i = 0; i < waypoints.length - 1; i++) {
+      const from = waypoints[i];
+      const to = waypoints[i + 1];
+      this.drawDashedLine(from.x, from.y, to.x, to.y, 8, 6);
+    }
+
+    // Draw waypoint circles
+    for (let i = 1; i < waypoints.length; i++) {
+      const wp = waypoints[i];
+      const isFinal = i === waypoints.length - 1;
+      const radius = isFinal ? 6 : 4;
+      this.aiDebugGraphics.fillStyle(0xff0000, isFinal ? 0.8 : 0.5);
+      this.aiDebugGraphics.fillCircle(wp.x, wp.y, radius);
+    }
+  }
+
+  private drawDashedLine(x1: number, y1: number, x2: number, y2: number, dashLen: number, gapLen: number): void {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
     const totalLen = Math.sqrt(dx * dx + dy * dy);
+    if (totalLen === 0) return;
+
     const steps = Math.floor(totalLen / (dashLen + gapLen));
 
-    for (let i = 0; i < steps; i++) {
+    for (let i = 0; i <= steps; i++) {
       const t1 = (i * (dashLen + gapLen)) / totalLen;
       const t2 = Math.min((i * (dashLen + gapLen) + dashLen) / totalLen, 1);
 
-      const x1 = tank.x + dx * t1;
-      const y1 = tank.y + dy * t1;
-      const x2 = tank.x + dx * t2;
-      const y2 = tank.y + dy * t2;
+      const sx = x1 + dx * t1;
+      const sy = y1 + dy * t1;
+      const ex = x1 + dx * t2;
+      const ey = y1 + dy * t2;
 
-      this.aiDebugGraphics.beginPath();
-      this.aiDebugGraphics.moveTo(x1, y1);
-      this.aiDebugGraphics.lineTo(x2, y2);
-      this.aiDebugGraphics.strokePath();
+      this.aiDebugGraphics!.beginPath();
+      this.aiDebugGraphics!.moveTo(sx, sy);
+      this.aiDebugGraphics!.lineTo(ex, ey);
+      this.aiDebugGraphics!.strokePath();
     }
-
-    // Draw target circle
-    this.aiDebugGraphics.fillStyle(0xff0000, 0.6);
-    this.aiDebugGraphics.fillCircle(target.x, target.y, 5);
-
-    // Draw state label
-    this.aiDebugGraphics.fillStyle(0xff0000, 1);
   }
 }

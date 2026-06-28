@@ -32,6 +32,7 @@ export class AIController {
   // Debug info
   public debugTarget: { x: number; y: number } | null = null;
   public debugState: string = 'PATROL';
+  public debugWaypoints: { x: number; y: number }[] = [];
 
   // Timers
   private reactionTimer: number = 0;
@@ -113,6 +114,12 @@ export class AIController {
     // Update debug info
     this.debugState = this.currentState.type;
     this.updateDebugTarget(output, aiInput);
+
+    // Collect waypoints from states that support it
+    this.debugWaypoints = [];
+    if ('debugWaypoints' in this.currentState && Array.isArray((this.currentState as any).debugWaypoints)) {
+      this.debugWaypoints = (this.currentState as any).debugWaypoints;
+    }
 
     // Override if stuck
     if (this.stuckTimer > 1.0) {
