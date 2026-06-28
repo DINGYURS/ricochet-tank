@@ -5,16 +5,12 @@ import {
   type AIState,
   type AIDifficultyConfig,
 } from '../../enums/AIState';
-import {
-  normalizeAngle,
-  angleDiff,
-  hasLineOfSight,
-  findBlockingWall,
-  getWallEdgePoint,
-  rayIntersectsRect,
-} from '../../utils/geometry';
+import { normalizeAngle, angleDiff, hasLineOfSight } from '../../utils/geometry';
+import { findPath } from '../../utils/pathfinder';
 
 const FIRE_THRESHOLD = Math.PI / 12;
+const GAME_WIDTH = 800;
+const GAME_HEIGHT = 600;
 
 export class ChaseState implements AIState {
   type = AIStateType.CHASE;
@@ -24,15 +20,25 @@ export class ChaseState implements AIState {
   /** Debug: waypoints the AI is navigating through */
   public debugWaypoints: { x: number; y: number }[] = [];
 
+  /** Cached path to avoid recalculating every frame */
+  private cachedPath: { x: number; y: number }[] = [];
+  private cachedGoal: { x: number; y: number } | null = null;
+  private pathRecalcTimer: number = 0;
+
   constructor(config: AIDifficultyConfig) {
     this.config = config;
   }
 
   enter(): void {
+    this.cachedPath = [];
+    this.cachedGoal = null;
+    this.pathRecalcTimer = 0;
     this.debugWaypoints = [];
   }
 
   exit(): void {
+    this.cachedPath = [];
+    this.cachedGoal = null;
     this.debugWaypoints = [];
   }
 
@@ -57,17 +63,41 @@ export class ChaseState implements AIState {
     let steerAngle: number;
 
     if (canSee) {
-      // Direct path - show straight line to enemy
+      // Direct path clear - go straight
       steerAngle = directAngle;
+      this.cachedPath = [];
       this.debugWaypoints = [
         { x: input.selfPosition.x, y: input.selfPosition.y },
         { x: input.enemyPosition.x, y: input.enemyPosition.y },
       ];
     } else {
-      // Path blocked - find waypoints around wall
-      const result = this.findPathAroundWall(input);
-      steerAngle = result.angle;
-      this.debugWaypoints = result.waypoints;
+      // Use BFS pathfinding
+      const result = this.getPath(input);
+      this.debugWaypoints = [
+        { x: input.selfPosition.x, y: input.selfPosition.y },
+        ...result,
+      ];
+
+      if (result.length > 0) {
+        // Navigate to first waypoint
+        const nextWaypoint = result[0];
+        steerAngle = Math.atan2(
+          nextWaypoint.y - input.selfPosition.y,
+          nextWaypoint.x - input.selfPosition.x,
+        );
+
+        // If we're close to the waypoint, remove it
+        const distToWaypoint = Math.hypot(
+          nextWaypoint.x - input.selfPosition.x,
+          nextWaypoint.y - input.selfPosition.y,
+        );
+        if (distToWaypoint < 20) {
+          this.cachedPath.shift();
+        }
+      } else {
+        // No path found - fallback to direct angle
+        steerAngle = directAngle;
+      }
     }
 
     const diff = angleDiff(input.selfRotation, steerAngle);
@@ -85,67 +115,32 @@ export class ChaseState implements AIState {
     };
   }
 
-  private findPathAroundWall(input: AIInput): { angle: number; waypoints: { x: number; y: number }[] } {
-    const { selfPosition, enemyPosition, walls } = input;
+  private getPath(input: AIInput): { x: number; y: number }[] {
+    const goal = input.enemyPosition!;
 
-    const directAngle = Math.atan2(
-      enemyPosition!.y - selfPosition.y,
-      enemyPosition!.x - selfPosition.x,
-    );
+    // Recalculate path periodically or if goal moved significantly
+    this.pathRecalcTimer -= 1; // every frame
+    const goalMoved = this.cachedGoal && Math.hypot(goal.x - this.cachedGoal.x, goal.y - this.cachedGoal.y) > 50;
 
-    const blocking = findBlockingWall(selfPosition, directAngle, walls);
+    if (this.cachedPath.length === 0 || this.pathRecalcTimer <= 0 || goalMoved) {
+      const pathResult = findPath(
+        input.selfPosition,
+        goal,
+        GAME_WIDTH,
+        GAME_HEIGHT,
+        input.walls,
+      );
 
-    if (blocking) {
-      const edgePoint = getWallEdgePoint(blocking.wall, selfPosition, enemyPosition!);
-      const angle = Math.atan2(edgePoint.y - selfPosition.y, edgePoint.x - selfPosition.x);
-
-      // Path: self → edge point → enemy
-      return {
-        angle,
-        waypoints: [
-          { x: selfPosition.x, y: selfPosition.y },
-          { x: edgePoint.x, y: edgePoint.y },
-          { x: enemyPosition!.x, y: enemyPosition!.y },
-        ],
-      };
-    }
-
-    // Fallback
-    const perpA = directAngle + Math.PI / 2;
-    const perpB = directAngle - Math.PI / 2;
-    const openA = this.measureOpenness(selfPosition, perpA, walls);
-    const openB = this.measureOpenness(selfPosition, perpB, walls);
-    const angle = openA > openB ? perpA : perpB;
-    const fallbackDist = 100;
-
-    return {
-      angle,
-      waypoints: [
-        { x: selfPosition.x, y: selfPosition.y },
-        {
-          x: selfPosition.x + Math.cos(angle) * fallbackDist,
-          y: selfPosition.y + Math.sin(angle) * fallbackDist,
-        },
-      ],
-    };
-  }
-
-  private measureOpenness(
-    self: { x: number; y: number },
-    angle: number,
-    walls: AIInput['walls'],
-  ): number {
-    const dx = Math.cos(angle);
-    const dy = Math.sin(angle);
-    let closest = 300;
-
-    for (const w of walls) {
-      const t = rayIntersectsRect(self.x, self.y, dx, dy, w);
-      if (t !== null && t > 0 && t < closest) {
-        closest = t;
+      if (pathResult.found) {
+        this.cachedPath = pathResult.waypoints;
+      } else {
+        this.cachedPath = [];
       }
+
+      this.cachedGoal = { x: goal.x, y: goal.y };
+      this.pathRecalcTimer = 15; // recalc every ~15 frames
     }
 
-    return closest;
+    return this.cachedPath;
   }
 }

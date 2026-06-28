@@ -4,19 +4,14 @@ import {
   type AIOutput,
   type AIState,
 } from '../../enums/AIState';
-import {
-  normalizeAngle,
-  angleDiff,
-  dist,
-  hasLineOfSight,
-  findBlockingWall,
-  getWallEdgePoint,
-  rayIntersectsRect,
-} from '../../utils/geometry';
+import { normalizeAngle, angleDiff, dist, hasLineOfSight } from '../../utils/geometry';
+import { findPath } from '../../utils/pathfinder';
 
 const ROTATION_THRESHOLD = 0.1;
 const BULLET_THREAT_ANGLE = 0.6;
 const THREAT_DISTANCE = 200;
+const GAME_WIDTH = 800;
+const GAME_HEIGHT = 600;
 
 export class CollectState implements AIState {
   type = AIStateType.COLLECT;
@@ -24,7 +19,15 @@ export class CollectState implements AIState {
   /** Debug: waypoints the AI is navigating through */
   public debugWaypoints: { x: number; y: number }[] = [];
 
+  /** Cached path */
+  private cachedPath: { x: number; y: number }[] = [];
+  private cachedGoal: { x: number; y: number } | null = null;
+  private pathRecalcTimer: number = 0;
+
   enter(): void {
+    this.cachedPath = [];
+    this.cachedGoal = null;
+    this.pathRecalcTimer = 0;
     this.debugWaypoints = [];
   }
 
@@ -54,14 +57,35 @@ export class CollectState implements AIState {
 
     if (directPathClear) {
       steerAngle = Math.atan2(powerUp.y - input.selfPosition.y, powerUp.x - input.selfPosition.x);
+      this.cachedPath = [];
       this.debugWaypoints = [
         { x: input.selfPosition.x, y: input.selfPosition.y },
         { x: powerUp.x, y: powerUp.y },
       ];
     } else {
-      const result = this.findPathAroundWall(input, powerUp);
-      steerAngle = result.angle;
-      this.debugWaypoints = result.waypoints;
+      const result = this.getPath(input, powerUp);
+      this.debugWaypoints = [
+        { x: input.selfPosition.x, y: input.selfPosition.y },
+        ...result,
+      ];
+
+      if (result.length > 0) {
+        const nextWaypoint = result[0];
+        steerAngle = Math.atan2(
+          nextWaypoint.y - input.selfPosition.y,
+          nextWaypoint.x - input.selfPosition.x,
+        );
+
+        const distToWaypoint = Math.hypot(
+          nextWaypoint.x - input.selfPosition.x,
+          nextWaypoint.y - input.selfPosition.y,
+        );
+        if (distToWaypoint < 20) {
+          this.cachedPath.shift();
+        }
+      } else {
+        steerAngle = Math.atan2(powerUp.y - input.selfPosition.y, powerUp.x - input.selfPosition.x);
+      }
     }
 
     const diff = angleDiff(input.selfRotation, steerAngle);
@@ -77,70 +101,30 @@ export class CollectState implements AIState {
   }
 
   exit(): void {
+    this.cachedPath = [];
+    this.cachedGoal = null;
     this.debugWaypoints = [];
   }
 
-  private findPathAroundWall(
-    input: AIInput,
-    target: { x: number; y: number },
-  ): { angle: number; waypoints: { x: number; y: number }[] } {
-    const { selfPosition, walls } = input;
+  private getPath(input: AIInput, goal: { x: number; y: number }): { x: number; y: number }[] {
+    this.pathRecalcTimer -= 1;
+    const goalMoved = this.cachedGoal && Math.hypot(goal.x - this.cachedGoal.x, goal.y - this.cachedGoal.y) > 50;
 
-    const directAngle = Math.atan2(target.y - selfPosition.y, target.x - selfPosition.x);
+    if (this.cachedPath.length === 0 || this.pathRecalcTimer <= 0 || goalMoved) {
+      const pathResult = findPath(
+        input.selfPosition,
+        goal,
+        GAME_WIDTH,
+        GAME_HEIGHT,
+        input.walls,
+      );
 
-    const blocking = findBlockingWall(selfPosition, directAngle, walls);
-
-    if (blocking) {
-      const edgePoint = getWallEdgePoint(blocking.wall, selfPosition, target);
-      const angle = Math.atan2(edgePoint.y - selfPosition.y, edgePoint.x - selfPosition.x);
-
-      return {
-        angle,
-        waypoints: [
-          { x: selfPosition.x, y: selfPosition.y },
-          { x: edgePoint.x, y: edgePoint.y },
-          { x: target.x, y: target.y },
-        ],
-      };
+      this.cachedPath = pathResult.found ? pathResult.waypoints : [];
+      this.cachedGoal = { x: goal.x, y: goal.y };
+      this.pathRecalcTimer = 15;
     }
 
-    // Fallback
-    const perpA = directAngle + Math.PI / 2;
-    const perpB = directAngle - Math.PI / 2;
-    const openA = this.measureOpenness(selfPosition, perpA, walls);
-    const openB = this.measureOpenness(selfPosition, perpB, walls);
-    const angle = openA > openB ? perpA : perpB;
-    const fallbackDist = 100;
-
-    return {
-      angle,
-      waypoints: [
-        { x: selfPosition.x, y: selfPosition.y },
-        {
-          x: selfPosition.x + Math.cos(angle) * fallbackDist,
-          y: selfPosition.y + Math.sin(angle) * fallbackDist,
-        },
-      ],
-    };
-  }
-
-  private measureOpenness(
-    self: { x: number; y: number },
-    angle: number,
-    walls: AIInput['walls'],
-  ): number {
-    const dx = Math.cos(angle);
-    const dy = Math.sin(angle);
-    let closest = 300;
-
-    for (const w of walls) {
-      const t = rayIntersectsRect(self.x, self.y, dx, dy, w);
-      if (t !== null && t > 0 && t < closest) {
-        closest = t;
-      }
-    }
-
-    return closest;
+    return this.cachedPath;
   }
 
   private findNearestPowerUp(input: AIInput): { x: number; y: number } | null {
