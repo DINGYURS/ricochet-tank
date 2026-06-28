@@ -198,8 +198,8 @@ import { GameScene, GameSettings } from '../../src/scenes/GameScene';
 
 describe('GameScene', () => {
   it('exports GameSettings interface', () => {
-    const settings: GameSettings = { mode: 'pvp' };
-    expect(settings.mode).toBe('pvp');
+    const settings: GameSettings = { mode: 'local', aiDifficulty: 'medium' };
+    expect(settings.mode).toBe('local');
   });
 
   it('can be instantiated', () => {
@@ -214,19 +214,19 @@ describe('GameScene', () => {
   });
 
   it('accepts GameSettings with ai mode', () => {
-    const settings: GameSettings = { mode: 'ai', difficulty: 'hard' };
+    const settings: GameSettings = { mode: 'ai', aiDifficulty: 'hard' };
     expect(settings.mode).toBe('ai');
-    expect(settings.difficulty).toBe('hard');
+    expect(settings.aiDifficulty).toBe('hard');
   });
 
-  it('accepts GameSettings with pvp mode', () => {
-    const settings: GameSettings = { mode: 'pvp' };
-    expect(settings.mode).toBe('pvp');
+  it('accepts GameSettings with local mode', () => {
+    const settings: GameSettings = { mode: 'local', aiDifficulty: 'medium' };
+    expect(settings.mode).toBe('local');
     expect(settings.difficulty).toBeUndefined();
   });
 
   it('defaults difficulty to undefined for pvp', () => {
-    const settings: GameSettings = { mode: 'pvp' };
+    const settings: GameSettings = { mode: 'local' };
     expect(settings.difficulty).toBeUndefined();
   });
 
@@ -237,30 +237,30 @@ describe('GameScene', () => {
 
   it('create method accepts pvp settings', () => {
     const scene = new GameScene();
-    expect(() => (scene as any).create({ mode: 'pvp' })).not.toThrow();
+    expect(() => (scene as any).create({ mode: 'local' })).not.toThrow();
   });
 
   it('create method accepts ai settings with difficulty', () => {
     const scene = new GameScene();
-    expect(() => (scene as any).create({ mode: 'ai', difficulty: 'easy' })).not.toThrow();
+    expect(() => (scene as any).create({ mode: 'ai', aiDifficulty: 'easy' })).not.toThrow();
   });
 
   it('create method accepts ai settings with all difficulty levels', () => {
     const scene = new GameScene();
     for (const diff of ['easy', 'medium', 'hard'] as const) {
-      expect(() => (scene as any).create({ mode: 'ai', difficulty: diff })).not.toThrow();
+      expect(() => (scene as any).create({ mode: 'ai', aiDifficulty: diff })).not.toThrow();
     }
   });
 
-  it('settings property defaults to pvp when create called without args', () => {
+  it('settings property defaults to local when create called without args', () => {
     const scene = new GameScene();
     (scene as any).create();
-    expect((scene as any).settings).toEqual({ mode: 'pvp' });
+    expect((scene as any).settings).toEqual({ mode: 'local', aiDifficulty: 'medium' });
   });
 
   it('settings property reflects provided ai settings', () => {
     const scene = new GameScene();
-    (scene as any).create({ mode: 'ai', difficulty: 'hard' });
-    expect((scene as any).settings).toEqual({ mode: 'ai', difficulty: 'hard' });
+    (scene as any).create({ mode: 'ai', aiDifficulty: 'hard' });
+    expect((scene as any).settings).toEqual({ mode: 'ai', aiDifficulty: 'hard' });
   });
 });

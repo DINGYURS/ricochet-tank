@@ -1,11 +1,11 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH, TEXT_COLOR } from '../config';
+import { GAME_WIDTH, TEXT_COLOR, type GameSettings } from '../config';
 
-type GameMode = 'vs-player' | 'vs-ai';
+type GameMode = 'local' | 'ai';
 
 const MODES: { key: GameMode; label: string }[] = [
-  { key: 'vs-player', label: 'VS Player' },
-  { key: 'vs-ai', label: 'VS AI' },
+  { key: 'local', label: 'VS Player' },
+  { key: 'ai', label: 'VS AI' },
 ];
 
 export class MenuScene extends Phaser.Scene {
@@ -85,8 +85,9 @@ export class MenuScene extends Phaser.Scene {
 
     this.input.keyboard!.on('keydown-ENTER', () => {
       const selected = MODES[this.selectedIndex];
-      if (selected.key === 'vs-player') {
-        this.scene.start('GameScene');
+      if (selected.key === 'local') {
+        const settings: GameSettings = { mode: 'local', aiDifficulty: 'medium' };
+        this.scene.start('GameScene', settings);
       } else {
         this.scene.start('DifficultyScene');
       }

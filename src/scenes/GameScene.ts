@@ -25,8 +25,8 @@ import { Mine } from '../objects/Mine';
 import { AIController } from '../systems/AIController';
 
 export interface GameSettings {
-  mode: 'pvp' | 'ai';
-  difficulty?: 'easy' | 'medium' | 'hard';
+  mode: 'local' | 'ai';
+  aiDifficulty?: 'easy' | 'medium' | 'hard';
 }
 
 enum RoundState {
@@ -67,7 +67,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(settings?: GameSettings): void {
-    this.settings = settings ?? { mode: 'pvp' };
+    this.settings = settings ?? { mode: 'local', aiDifficulty: 'medium' };
     this.aiController = null;
     this.scoreP1 = 0;
     this.scoreP2 = 0;
@@ -143,7 +143,7 @@ export class GameScene extends Phaser.Scene {
     this.powerUpManager = new PowerUpManager(this, this.wallData, this.tanks);
 
     if (this.settings.mode === 'ai') {
-      this.aiController = new AIController(this.tanks[1], this.tanks[0], this.settings.difficulty ?? 'medium');
+      this.aiController = new AIController(this.tanks[1], this.tanks[0], this.settings.aiDifficulty ?? 'medium');
       // Create debug graphics for AI path visualization
       try {
         if (this.aiDebugGraphics && typeof this.aiDebugGraphics.destroy === 'function') {
@@ -515,7 +515,7 @@ export class GameScene extends Phaser.Scene {
 
   private getOpponentLabel(): string {
     if (this.settings.mode === 'ai') {
-      const diff = this.settings.difficulty ?? 'medium';
+      const diff = this.settings.aiDifficulty ?? 'medium';
       return `AI (${diff.charAt(0).toUpperCase() + diff.slice(1)})`;
     }
     return 'P2';
