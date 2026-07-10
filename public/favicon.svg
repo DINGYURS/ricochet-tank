@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Ricochet Tank">
+  <rect width="64" height="64" rx="12" fill="#1a1a2e"/>
+  <path d="M29 8h6v18h-6z" fill="#9fc4ff"/>
+  <rect x="18" y="20" width="28" height="28" rx="5" fill="#4488ff"/>
+  <rect x="24" y="24" width="16" height="16" rx="4" fill="#72a6ff"/>
+  <path d="M12 22h7v28h-7zm33 0h7v28h-7z" fill="#2255aa"/>
+  <path d="M17 53h30" stroke="#ffff00" stroke-width="4" stroke-linecap="round"/>
+</svg>
