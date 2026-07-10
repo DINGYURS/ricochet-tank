@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { generateMaze } from '../../src/systems/MazeGenerator';
 import { MAZE_COLS, MAZE_ROWS, CELL_SIZE, WALL_THICKNESS } from '../../src/config';
 
@@ -23,9 +23,15 @@ describe('generateMaze', () => {
     expect(dx + dy).toBeGreaterThan(CELL_SIZE * 3);
   });
 
-  it('generates different mazes on each call', () => {
+  it('uses random choices to produce different wall layouts', () => {
+    const random = vi.spyOn(Math, 'random');
+    random.mockReturnValue(0);
     const r1 = generateMaze(MAZE_COLS, MAZE_ROWS, CELL_SIZE, WALL_THICKNESS, 0.2, 2);
+
+    random.mockReturnValue(0.999999);
     const r2 = generateMaze(MAZE_COLS, MAZE_ROWS, CELL_SIZE, WALL_THICKNESS, 0.2, 2);
-    expect(r1.walls.length === r2.walls.length).toBe(false);
+
+    random.mockRestore();
+    expect(r1.walls).not.toEqual(r2.walls);
   });
 });
