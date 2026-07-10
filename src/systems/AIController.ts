@@ -7,12 +7,13 @@ import { ChaseState } from './states/ChaseState';
 import { AttackState } from './states/AttackState';
 import { DodgeState } from './states/DodgeState';
 import { CollectState } from './states/CollectState';
+import type { AIDifficulty } from '../config';
 
 interface InternalConfig extends AIDifficultyConfig {
   decisionInterval: number;
 }
 
-const DIFFICULTY: Record<string, InternalConfig> = {
+const DIFFICULTY: Record<AIDifficulty, InternalConfig> = {
   easy:   { ...AI_DIFFICULTY_CONFIGS.easy,   decisionInterval: 0.5 },
   medium: { ...AI_DIFFICULTY_CONFIGS.medium, decisionInterval: 0.3 },
   hard:   { ...AI_DIFFICULTY_CONFIGS.hard,   decisionInterval: 0.15 },
@@ -52,10 +53,10 @@ export class AIController {
   private gameWidth: number = 800;
   private gameHeight: number = 600;
 
-  constructor(tank: Tank, enemy: Tank, difficulty: string) {
+  constructor(tank: Tank, enemy: Tank, difficulty: AIDifficulty) {
     this.tank = tank;
     this.enemy = enemy;
-    this.config = DIFFICULTY[difficulty] ?? DIFFICULTY.medium;
+    this.config = DIFFICULTY[difficulty];
 
     this.states = new Map<AIStateType, AIState>([
       [AIStateType.PATROL, new PatrolState()],

@@ -1,3 +1,5 @@
+import type { AIDifficulty } from '../config';
+
 // ---------------------------------------------------------------------------
 // AI State Machine Types
 // ---------------------------------------------------------------------------
@@ -67,7 +69,7 @@ export interface AIDifficultyConfig {
   fireRateCooldown: number;
 }
 
-export const AI_DIFFICULTY_CONFIGS: Record<string, AIDifficultyConfig> = {
+export const AI_DIFFICULTY_CONFIGS = {
   easy: {
     reactionDelay: 0.4,
     accuracyOffset: Math.PI / 6,
@@ -89,4 +91,4 @@ export const AI_DIFFICULTY_CONFIGS: Record<string, AIDifficultyConfig> = {
     collectWillingness: 0.9,
     fireRateCooldown: 0.15,
   },
-};
+} satisfies Record<AIDifficulty, AIDifficultyConfig>;

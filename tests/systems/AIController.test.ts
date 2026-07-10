@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, expectTypeOf, vi, beforeEach } from 'vitest';
 import { AIController } from '../../src/systems/AIController';
 import { AIStateType } from '../../src/enums/AIState';
 import { PowerUpType } from '../../src/enums/PowerUpType';
+import type { AIDifficulty } from '../../src/config';
 
 function makeTank(overrides: Record<string, any> = {}): any {
   return {
@@ -46,6 +47,10 @@ describe('AIController', () => {
     tank = makeTank({ x: 100, y: 100, rotation: 0, playerId: 0 });
     enemy = makeTank({ x: 400, y: 100, rotation: Math.PI, playerId: 1 });
     ai = new AIController(tank, enemy, 'medium');
+  });
+
+  it('accepts only canonical AI difficulty values', () => {
+    expectTypeOf<ConstructorParameters<typeof AIController>[2]>().toEqualTypeOf<AIDifficulty>();
   });
 
   describe('getInput', () => {
