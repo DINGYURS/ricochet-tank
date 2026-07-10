@@ -72,7 +72,7 @@ export type AIDifficulty = 'easy' | 'medium' | 'hard';
 
 export interface GameSettings {
   mode: 'local' | 'ai';
-  aiDifficulty: AIDifficulty;
+  aiDifficulty?: AIDifficulty;
 }
 
 export const DEFAULT_GAME_SETTINGS: GameSettings = {

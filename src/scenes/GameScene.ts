@@ -8,6 +8,8 @@ import {
   AMMO_MAX, AMMO_REFILL_INTERVAL,
   SHIELD_DURATION, RAPID_FIRE_DURATION, DOUBLE_SHOT_DURATION,
   ROCKET_TURN_SPEED, LASER_LIFETIME, POWERUP_RADIUS,
+  DEFAULT_GAME_SETTINGS,
+  type GameSettings,
 } from '../config';
 import { InputManager } from '../systems/InputManager';
 import { generateMaze } from '../systems/MazeGenerator';
@@ -23,11 +25,6 @@ import { getEffectiveCooldown, createBulletsForShot, fireLaser, fireRocket, plac
 import { Rocket } from '../objects/Rocket';
 import { Mine } from '../objects/Mine';
 import { AIController } from '../systems/AIController';
-
-export interface GameSettings {
-  mode: 'local' | 'ai';
-  aiDifficulty?: 'easy' | 'medium' | 'hard';
-}
 
 enum RoundState {
   GENERATING = 'GENERATING',
@@ -58,7 +55,7 @@ export class GameScene extends Phaser.Scene {
   private laserTimer: number = 0;
   private laserHitPlayerId: number | null = null;
   private collectionText!: Phaser.GameObjects.Text;
-  private settings: GameSettings = { mode: 'pvp' };
+  private settings: GameSettings = { ...DEFAULT_GAME_SETTINGS };
   private aiController: AIController | null = null;
   private aiDebugGraphics: Phaser.GameObjects.Graphics | null = null;
 
@@ -67,7 +64,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(settings?: GameSettings): void {
-    this.settings = settings ?? { mode: 'local', aiDifficulty: 'medium' };
+    this.settings = settings ?? { ...DEFAULT_GAME_SETTINGS };
     this.aiController = null;
     this.scoreP1 = 0;
     this.scoreP2 = 0;

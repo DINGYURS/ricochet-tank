@@ -57,7 +57,7 @@ export class AIController {
     this.enemy = enemy;
     this.config = DIFFICULTY[difficulty] ?? DIFFICULTY.medium;
 
-    this.states = new Map([
+    this.states = new Map<AIStateType, AIState>([
       [AIStateType.PATROL, new PatrolState()],
       [AIStateType.CHASE, new ChaseState(this.config)],
       [AIStateType.ATTACK, new AttackState(this.config, tank.playerId)],

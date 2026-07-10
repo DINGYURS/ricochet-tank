@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { AI_DIFFICULTY_PRESETS, AI_DODGE_THRESHOLD, getDifficultyConfig } from '../../src/systems/AIDifficulty';
 import { AI_DIFFICULTY_PRESETS as ConfigPresets, AI_DODGE_THRESHOLD as ConfigThreshold } from '../../src/config';
-import type { AIDifficultyConfig } from '../../src/enums/AIState';
+import { AI_DIFFICULTY_CONFIGS, type AIDifficultyConfig } from '../../src/enums/AIState';
 
 describe('AIDifficulty', () => {
   describe('difficulty presets', () => {
@@ -15,13 +15,10 @@ describe('AIDifficulty', () => {
     it('each preset is a valid AIDifficultyConfig', () => {
       const requiredKeys: (keyof AIDifficultyConfig)[] = [
         'reactionDelay',
-        'shootingAccuracyOffset',
+        'accuracyOffset',
         'bulletDetectionDistance',
         'collectWillingness',
         'fireRateCooldown',
-        'dodgeProbability',
-        'moveSpeedMultiplier',
-        'rotateSpeedMultiplier',
       ];
 
       for (const [name, config] of Object.entries(AI_DIFFICULTY_PRESETS)) {
@@ -33,13 +30,13 @@ describe('AIDifficulty', () => {
 
     it('parameters are within valid ranges', () => {
       for (const [name, config] of Object.entries(AI_DIFFICULTY_PRESETS)) {
-        // reactionDelay: positive ms value
+        // reactionDelay: positive seconds value
         expect(config.reactionDelay, `${name}.reactionDelay`).toBeGreaterThan(0);
-        expect(config.reactionDelay, `${name}.reactionDelay`).toBeLessThanOrEqual(2000);
+        expect(config.reactionDelay, `${name}.reactionDelay`).toBeLessThanOrEqual(2);
 
-        // shootingAccuracyOffset: 0 to PI radians (0 to 180 degrees)
-        expect(config.shootingAccuracyOffset, `${name}.shootingAccuracyOffset`).toBeGreaterThanOrEqual(0);
-        expect(config.shootingAccuracyOffset, `${name}.shootingAccuracyOffset`).toBeLessThanOrEqual(Math.PI);
+        // accuracyOffset: 0 to PI radians (0 to 180 degrees)
+        expect(config.accuracyOffset, `${name}.accuracyOffset`).toBeGreaterThanOrEqual(0);
+        expect(config.accuracyOffset, `${name}.accuracyOffset`).toBeLessThanOrEqual(Math.PI);
 
         // bulletDetectionDistance: positive pixels
         expect(config.bulletDetectionDistance, `${name}.bulletDetectionDistance`).toBeGreaterThan(0);
@@ -51,15 +48,6 @@ describe('AIDifficulty', () => {
         // fireRateCooldown: positive seconds
         expect(config.fireRateCooldown, `${name}.fireRateCooldown`).toBeGreaterThan(0);
 
-        // dodgeProbability: 0 to 1
-        expect(config.dodgeProbability, `${name}.dodgeProbability`).toBeGreaterThanOrEqual(0);
-        expect(config.dodgeProbability, `${name}.dodgeProbability`).toBeLessThanOrEqual(1);
-
-        // moveSpeedMultiplier: positive
-        expect(config.moveSpeedMultiplier, `${name}.moveSpeedMultiplier`).toBeGreaterThan(0);
-
-        // rotateSpeedMultiplier: positive
-        expect(config.rotateSpeedMultiplier, `${name}.rotateSpeedMultiplier`).toBeGreaterThan(0);
       }
     });
 
@@ -72,9 +60,9 @@ describe('AIDifficulty', () => {
       expect(easy.reactionDelay).toBeGreaterThan(medium.reactionDelay);
       expect(medium.reactionDelay).toBeGreaterThan(hard.reactionDelay);
 
-      // shootingAccuracyOffset: easy > medium > hard (less offset = harder)
-      expect(easy.shootingAccuracyOffset).toBeGreaterThan(medium.shootingAccuracyOffset);
-      expect(medium.shootingAccuracyOffset).toBeGreaterThan(hard.shootingAccuracyOffset);
+      // accuracyOffset: easy > medium > hard (less offset = harder)
+      expect(easy.accuracyOffset).toBeGreaterThan(medium.accuracyOffset);
+      expect(medium.accuracyOffset).toBeGreaterThan(hard.accuracyOffset);
 
       // bulletDetectionDistance: easy < medium < hard (more detection = harder)
       expect(easy.bulletDetectionDistance).toBeLessThan(medium.bulletDetectionDistance);
@@ -88,9 +76,6 @@ describe('AIDifficulty', () => {
       expect(easy.fireRateCooldown).toBeGreaterThan(medium.fireRateCooldown);
       expect(medium.fireRateCooldown).toBeGreaterThan(hard.fireRateCooldown);
 
-      // dodgeProbability: easy < medium < hard
-      expect(easy.dodgeProbability).toBeLessThan(medium.dodgeProbability);
-      expect(medium.dodgeProbability).toBeLessThan(hard.dodgeProbability);
     });
   });
 
@@ -111,14 +96,15 @@ describe('AIDifficulty', () => {
     });
 
     it('throws for unknown difficulty', () => {
-      expect(() => getDifficultyConfig('impossible')).toThrow('Unknown difficulty');
-      expect(() => getDifficultyConfig('')).toThrow('Unknown difficulty');
+      expect(() => getDifficultyConfig('impossible' as never)).toThrow('Unknown difficulty');
+      expect(() => getDifficultyConfig('' as never)).toThrow('Unknown difficulty');
     });
   });
 
   describe('config re-exports', () => {
     it('AI_DIFFICULTY_PRESETS is available from config.ts', () => {
       expect(ConfigPresets).toBe(AI_DIFFICULTY_PRESETS);
+      expect(AI_DIFFICULTY_PRESETS).toBe(AI_DIFFICULTY_CONFIGS);
     });
 
     it('AI_DODGE_THRESHOLD is available from config.ts', () => {

@@ -194,12 +194,17 @@ vi.mock('../../src/systems/AIController', () => {
 });
 
 // Now import after all mocks are set up
-import { GameScene, GameSettings } from '../../src/scenes/GameScene';
+import { GameScene } from '../../src/scenes/GameScene';
+import { DEFAULT_GAME_SETTINGS, type GameSettings } from '../../src/config';
 
 describe('GameScene', () => {
-  it('exports GameSettings interface', () => {
+  it('uses the canonical GameSettings interface', () => {
     const settings: GameSettings = { mode: 'local', aiDifficulty: 'medium' };
     expect(settings.mode).toBe('local');
+  });
+
+  it('uses the canonical local defaults', () => {
+    expect(DEFAULT_GAME_SETTINGS).toEqual({ mode: 'local', aiDifficulty: 'medium' });
   });
 
   it('can be instantiated', () => {
@@ -222,20 +227,20 @@ describe('GameScene', () => {
   it('accepts GameSettings with local mode', () => {
     const settings: GameSettings = { mode: 'local', aiDifficulty: 'medium' };
     expect(settings.mode).toBe('local');
-    expect(settings.difficulty).toBeUndefined();
+    expect(settings.aiDifficulty).toBe('medium');
   });
 
-  it('defaults difficulty to undefined for pvp', () => {
+  it('accepts local settings without an explicit difficulty', () => {
     const settings: GameSettings = { mode: 'local' };
-    expect(settings.difficulty).toBeUndefined();
+    expect(settings.aiDifficulty).toBeUndefined();
   });
 
-  it('create method can be called with no settings (defaults to pvp)', () => {
+  it('create method can be called with no settings (defaults to local)', () => {
     const scene = new GameScene();
     expect(() => (scene as any).create()).not.toThrow();
   });
 
-  it('create method accepts pvp settings', () => {
+  it('create method accepts local settings', () => {
     const scene = new GameScene();
     expect(() => (scene as any).create({ mode: 'local' })).not.toThrow();
   });
