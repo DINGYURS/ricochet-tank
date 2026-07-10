@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { PatrolState } from '../../../src/systems/states/PatrolState';
 import { AIStateType, type AIInput, type AIDifficultyConfig } from '../../../src/enums/AIState';
 
@@ -60,21 +60,26 @@ describe('PatrolState', () => {
   });
 
   it('picks new direction periodically', () => {
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.25);
     const state = new PatrolState();
     const input = makeInput();
 
-    let changed = false;
-    let lastLeft = false;
-    let lastRight = false;
-    for (let i = 0; i < 300; i++) {
-      const output = state.execute(input, 0.016);
-      if (i > 0 && (output.rotateLeft !== lastLeft || output.rotateRight !== lastRight)) {
-        changed = true;
-        break;
+    try {
+      let changed = false;
+      let lastLeft = false;
+      let lastRight = false;
+      for (let i = 0; i < 300; i++) {
+        const output = state.execute(input, 0.016);
+        if (i > 0 && (output.rotateLeft !== lastLeft || output.rotateRight !== lastRight)) {
+          changed = true;
+          break;
+        }
+        lastLeft = output.rotateLeft;
+        lastRight = output.rotateRight;
       }
-      lastLeft = output.rotateLeft;
-      lastRight = output.rotateRight;
+      expect(changed).toBe(true);
+    } finally {
+      random.mockRestore();
     }
-    expect(changed).toBe(true);
   });
 });
