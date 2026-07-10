@@ -268,4 +268,10 @@ describe('GameScene', () => {
     (scene as any).create({ mode: 'ai', aiDifficulty: 'hard' });
     expect((scene as any).settings).toEqual({ mode: 'ai', aiDifficulty: 'hard' });
   });
+
+  it('does not create AI debug graphics when debug paths are disabled', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'ai', aiDifficulty: 'easy' });
+    expect((scene as any).aiDebugGraphics).toBeNull();
+  });
 });

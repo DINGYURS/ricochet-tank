@@ -9,6 +9,7 @@ import {
   SHIELD_DURATION, RAPID_FIRE_DURATION, DOUBLE_SHOT_DURATION,
   ROCKET_TURN_SPEED, LASER_LIFETIME, POWERUP_RADIUS,
   DEFAULT_GAME_SETTINGS,
+  DEBUG_AI_PATHS,
   type GameSettings,
 } from '../config';
 import { InputManager } from '../systems/InputManager';
@@ -139,19 +140,15 @@ export class GameScene extends Phaser.Scene {
 
     this.powerUpManager = new PowerUpManager(this, this.wallData, this.tanks);
 
+    if (this.aiDebugGraphics && typeof this.aiDebugGraphics.destroy === 'function') {
+      this.aiDebugGraphics.destroy();
+    }
+    this.aiDebugGraphics = null;
+
     if (this.settings.mode === 'ai') {
       this.aiController = new AIController(this.tanks[1], this.tanks[0], this.settings.aiDifficulty ?? 'medium');
-      // Create debug graphics for AI path visualization
-      try {
-        if (this.aiDebugGraphics && typeof this.aiDebugGraphics.destroy === 'function') {
-          this.aiDebugGraphics.destroy();
-        }
-        this.aiDebugGraphics = null;
-        if (this.add && typeof this.add.graphics === 'function') {
-          this.aiDebugGraphics = this.add.graphics().setDepth(99);
-        }
-      } catch {
-        this.aiDebugGraphics = null;
+      if (DEBUG_AI_PATHS) {
+        this.aiDebugGraphics = this.add.graphics().setDepth(99);
       }
     }
 
@@ -202,7 +199,9 @@ export class GameScene extends Phaser.Scene {
       );
       p2 = this.aiController.getInput(delta, this.time.now);
       // Draw AI debug path
-      this.drawAIDebugPath();
+      if (DEBUG_AI_PATHS) {
+        this.drawAIDebugPath();
+      }
     } else {
       p2 = this.inputManager.getPlayer2Input();
     }

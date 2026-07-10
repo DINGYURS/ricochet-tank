@@ -79,3 +79,6 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
   mode: 'local',
   aiDifficulty: 'medium',
 };
+
+// Development diagnostics
+export const DEBUG_AI_PATHS = false;
