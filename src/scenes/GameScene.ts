@@ -9,6 +9,7 @@ import {
   SHIELD_DURATION, RAPID_FIRE_DURATION, DOUBLE_SHOT_DURATION,
   ROCKET_TURN_SPEED, LASER_LIFETIME, POWERUP_RADIUS,
   DEATH_RAY_CHARGE_DURATION, DEATH_RAY_BEAM_LIFETIME,
+  RC_MISSILE_SPEED,
   DEFAULT_GAME_SETTINGS,
   DEBUG_AI_PATHS,
   type GameSettings,
@@ -31,6 +32,7 @@ import { evaluateRound } from '../systems/MatchRules';
 import { PauseScene, type PauseStatus } from './PauseScene';
 import { resolveWeaponAction, type WeaponAction } from '../systems/WeaponInputResolver';
 import { advanceDeathRayCharge, traceDeathRay, type DeathRayChargeState, type Point } from '../systems/DeathRay';
+import { RCMissile } from '../objects/RCMissile';
 
 enum RoundState {
   GENERATING = 'GENERATING',
@@ -82,6 +84,7 @@ export class GameScene extends Phaser.Scene {
   private matchOverSpaceHandler: (() => void) | null = null;
   private deathRayCharges = new Map<number, ActiveDeathRayCharge>();
   private deathRayBeams: Array<{ graphics: Phaser.GameObjects.Graphics; remaining: number }> = [];
+  private rcMissiles: RCMissile[] = [];
 
   constructor() {
     super({ key: GameScene.KEY });
@@ -145,6 +148,7 @@ export class GameScene extends Phaser.Scene {
   private startRound(): void {
     this.clearAsyncTasks();
     this.clearDeathRays();
+    this.clearRCMissiles();
     this.roundState = RoundState.GENERATING;
 
     for (const wall of this.walls) wall.destroy();
@@ -256,16 +260,22 @@ export class GameScene extends Phaser.Scene {
       inputs.push(this.inputManager.getPlayer3Input(this.tanks[2]));
     }
 
+    this.updateRCMissiles(dt, inputs, eliminatedThisFrame);
+    for (const playerId of eliminatedThisFrame) {
+      this.tanks.find(tank => tank.playerId === playerId)?.setAlive(false);
+    }
+    const rcOwnerIds = new Set(this.rcMissiles.filter(missile => missile.active).map(missile => missile.ownerId));
+
     for (let playerId = 0; playerId < this.tanks.length; playerId++) {
       const tank = this.tanks[playerId];
       const input = inputs[playerId];
-      if (!tank.alive || chargingPlayerIds.has(tank.playerId)) continue;
+      if (!tank.alive || chargingPlayerIds.has(tank.playerId) || rcOwnerIds.has(tank.playerId)) continue;
       const rotateInput = (input.rotateLeft ? -1 : 0) + (input.rotateRight ? 1 : 0);
       this.updateTank(tank, input.forward, input.backward, rotateInput, dt);
     }
 
     const weaponCommands: WeaponCommand[] = this.tanks.map((tank, playerId) => {
-      if (!tank.alive || chargingPlayerIds.has(tank.playerId)) return { action: 'none', activePowerUp: null };
+      if (!tank.alive || chargingPlayerIds.has(tank.playerId) || rcOwnerIds.has(tank.playerId)) return { action: 'none', activePowerUp: null };
       const input = inputs[playerId];
       const action = resolveWeaponAction({
         shoot: input.shoot,
@@ -489,12 +499,62 @@ export class GameScene extends Phaser.Scene {
       this.matchOverSpaceHandler = null;
     }
     this.clearDeathRays();
+    this.clearRCMissiles();
   }
 
   private clearDeathRays(): void {
     this.deathRayCharges.clear();
     for (const beam of this.deathRayBeams) beam.graphics.destroy();
     this.deathRayBeams = [];
+  }
+
+  private clearRCMissiles(): void {
+    for (const missile of this.rcMissiles) missile.destroy();
+    this.rcMissiles = [];
+  }
+
+  private updateRCMissiles(dt: number, inputs: PlayerInput[], eliminatedThisFrame: Set<number>): void {
+    for (const missile of this.rcMissiles) {
+      if (!missile.active) continue;
+      const owner = this.tanks.find(tank => tank.playerId === missile.ownerId);
+      if (!owner?.alive) {
+        missile.destroy();
+        continue;
+      }
+      const input = inputs[missile.ownerId];
+      const steerInput = input ? (input.rotateLeft ? -1 : 0) + (input.rotateRight ? 1 : 0) : 0;
+      missile.update(dt, steerInput);
+      if (!missile.active) continue;
+
+      for (const wall of this.wallData) {
+        if (!circleRectOverlap(missile.x, missile.y, missile.radius, wall.x, wall.y, wall.width, wall.height)) continue;
+        missile.reflect(wall.orientation);
+        const speed = Math.hypot(missile.state.vx, missile.state.vy);
+        if (missile.active && speed > 0) {
+          missile.state.x += missile.state.vx / speed * BULLET_WALL_PUSH;
+          missile.state.y += missile.state.vy / speed * BULLET_WALL_PUSH;
+        }
+        break;
+      }
+      if (!missile.active) continue;
+
+      for (const tank of this.tanks) {
+        if (!tank.alive) continue;
+        if (tank.playerId === missile.ownerId && missile.isOwnerSafe()) continue;
+        if (!circleCircleOverlap(missile.x, missile.y, missile.radius, tank.x, tank.y, tank.radius)) continue;
+        if (tank.shieldActive) {
+          tank.shieldActive = false;
+          tank.passiveEffects.delete(PowerUpType.Shield);
+          tank.passiveTimers.delete(PowerUpType.Shield);
+          this.soundManager.shieldBreak();
+        } else {
+          eliminatedThisFrame.add(tank.playerId);
+        }
+        missile.destroy();
+        break;
+      }
+    }
+    this.rcMissiles = this.rcMissiles.filter(missile => missile.active);
   }
 
   private updateDeathRays(dt: number, eliminatedThisFrame: Set<number>): void {
@@ -672,6 +732,10 @@ export class GameScene extends Phaser.Scene {
 
     for (const playerId of new Set(playerIds)) {
       this.deathRayCharges.delete(playerId);
+      for (const missile of this.rcMissiles) {
+        if (missile.ownerId === playerId) missile.destroy();
+      }
+      this.rcMissiles = this.rcMissiles.filter(missile => missile.active);
       const tank = this.tanks.find(candidate => candidate.playerId === playerId);
       if (tank?.alive) tank.setAlive(false);
     }
@@ -685,6 +749,7 @@ export class GameScene extends Phaser.Scene {
     this.rockets = [];
     for (const mine of this.mines) mine.destroy();
     this.mines = [];
+    this.clearRCMissiles();
     if (this.laserGraphics) { this.laserGraphics.destroy(); this.laserGraphics = null; }
     if (result.draw) {
       this.statusText.setText('DRAW!');
@@ -773,6 +838,20 @@ export class GameScene extends Phaser.Scene {
           origin,
           direction: { x: Math.cos(tank.rotation), y: Math.sin(tank.rotation) },
         });
+        break;
+      }
+      case PowerUpType.RCMissile: {
+        const origin = tank.getBarrelTip();
+        const missile = new RCMissile(
+          this,
+          origin.x,
+          origin.y,
+          Math.cos(tank.rotation) * RC_MISSILE_SPEED,
+          Math.sin(tank.rotation) * RC_MISSILE_SPEED,
+          tank.playerId,
+        );
+        this.rcMissiles.push(missile);
+        this.soundManager.rocketFire();
         break;
       }
     }

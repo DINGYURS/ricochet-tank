@@ -219,6 +219,27 @@ vi.mock('../../src/objects/Mine', () => {
   return { Mine: class {} };
 });
 
+vi.mock('../../src/objects/RCMissile', () => {
+  return {
+    RCMissile: class {
+      state: any;
+      ownerId: number;
+      radius = 4;
+      update = vi.fn();
+      reflect = vi.fn();
+      destroy = vi.fn(() => { this.state.active = false; });
+      isOwnerSafe = vi.fn(() => false);
+      constructor(_scene: any, x: number, y: number, vx: number, vy: number, ownerId: number) {
+        this.state = { x, y, vx, vy, age: 0, bounces: 0, active: true };
+        this.ownerId = ownerId;
+      }
+      get x() { return this.state.x; }
+      get y() { return this.state.y; }
+      get active() { return this.state.active; }
+    },
+  };
+});
+
 vi.mock('../../src/systems/AIController', () => {
   return {
     AIController: class {
@@ -634,5 +655,62 @@ describe('GameScene', () => {
     (scene as any).eliminatePlayers([0]);
 
     expect((scene as any).deathRayCharges.has(0)).toBe(false);
+  });
+
+  it('launches an RC Missile from unified weapon input', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const tank = (scene as any).tanks[0];
+    tank.heldPowerUp = 'RCMissile';
+
+    (scene as any).handleWeaponInput(tank, { shoot: true, usePowerUp: false }, 0);
+
+    expect((scene as any).rcMissiles).toHaveLength(1);
+    expect((scene as any).rcMissiles[0].ownerId).toBe(0);
+  });
+
+  it('locks the owner tank and steers its active RC Missile', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const owner = (scene as any).tanks[0];
+    owner.heldPowerUp = 'RCMissile';
+    (scene as any).handleWeaponInput(owner, { shoot: true, usePowerUp: false }, 0);
+    (scene as any).roundState = 'PLAYING';
+    mockPlayer1Input.rotateRight = true;
+    const updateTank = vi.spyOn(scene as any, 'updateTank');
+
+    scene.update(0, 16);
+
+    expect((scene as any).rcMissiles[0].update).toHaveBeenCalledWith(expect.any(Number), 1);
+    expect(updateTank.mock.calls.some(call => call[0] === owner)).toBe(false);
+  });
+
+  it('cleans active RC Missiles on restart', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const owner = (scene as any).tanks[0];
+    owner.heldPowerUp = 'RCMissile';
+    (scene as any).handleWeaponInput(owner, { shoot: true, usePowerUp: false }, 0);
+    const missile = (scene as any).rcMissiles[0];
+
+    scene.restartMatch();
+
+    expect(missile.destroy).toHaveBeenCalledOnce();
+    expect((scene as any).rcMissiles).toEqual([]);
+  });
+
+  it('destroys an active RC Missile when its owner is eliminated', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 3 });
+    const owner = (scene as any).tanks[0];
+    owner.heldPowerUp = 'RCMissile';
+    (scene as any).handleWeaponInput(owner, { shoot: true, usePowerUp: false }, 0);
+    const missile = (scene as any).rcMissiles[0];
+    (scene as any).roundState = 'PLAYING';
+
+    (scene as any).eliminatePlayers([0]);
+
+    expect(missile.destroy).toHaveBeenCalledOnce();
+    expect((scene as any).rcMissiles).toEqual([]);
   });
 });
