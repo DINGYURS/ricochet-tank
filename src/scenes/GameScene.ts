@@ -190,6 +190,7 @@ export class GameScene extends Phaser.Scene {
 
     const dt = Math.min(delta / 1000, MAX_DT);
     const currentTimeMs = this.time.now;
+    const eliminatedThisFrame = new Set<number>();
 
     const inputs: PlayerInput[] = [this.inputManager.getPlayer1Input()];
 
@@ -248,7 +249,7 @@ export class GameScene extends Phaser.Scene {
               target.passiveTimers.delete(PowerUpType.Shield);
               this.soundManager.shieldBreak();
             } else {
-              this.eliminatePlayers([this.laserHitPlayerId]);
+              eliminatedThisFrame.add(this.laserHitPlayerId);
             }
           }
           this.laserHitPlayerId = null;
@@ -286,7 +287,7 @@ export class GameScene extends Phaser.Scene {
             tank.passiveTimers.delete(PowerUpType.Shield);
             this.soundManager.shieldBreak();
           } else {
-            this.eliminatePlayers([tank.playerId]);
+            eliminatedThisFrame.add(tank.playerId);
           }
           rocket.destroy();
           return false;
@@ -310,7 +311,7 @@ export class GameScene extends Phaser.Scene {
             this.soundManager.shieldBreak();
           } else {
             this.soundManager.mineExplode();
-            this.eliminatePlayers([tank.playerId]);
+            eliminatedThisFrame.add(tank.playerId);
           }
           mine.destroy();
         }
@@ -381,7 +382,11 @@ export class GameScene extends Phaser.Scene {
     });
 
     if (deadPlayers.length > 0) {
-      this.eliminatePlayers(deadPlayers);
+      for (const playerId of deadPlayers) eliminatedThisFrame.add(playerId);
+    }
+
+    if (eliminatedThisFrame.size > 0) {
+      this.eliminatePlayers([...eliminatedThisFrame]);
     }
   }
 

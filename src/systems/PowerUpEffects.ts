@@ -89,9 +89,12 @@ export function fireLaser(
 
     // Check tank hits along this segment
     if (hitPlayerId === null) {
+      let nearestTankDistance = Infinity;
       for (const t of tanks) {
         if (!t.alive || t.playerId === tank.playerId) continue;
-        if (lineCircleIntersect(x, y, nearestX, nearestY, t.x, t.y, t.radius)) {
+        const distance = lineCircleIntersectionDistance(x, y, nearestX, nearestY, t.x, t.y, t.radius);
+        if (distance !== null && distance < nearestTankDistance) {
+          nearestTankDistance = distance;
           hitPlayerId = t.playerId;
         }
       }
@@ -212,10 +215,10 @@ function lineLineIntersection(
   return null;
 }
 
-function lineCircleIntersect(
+function lineCircleIntersectionDistance(
   x1: number, y1: number, x2: number, y2: number,
   cx: number, cy: number, r: number
-): boolean {
+): number | null {
   const dx = x2 - x1;
   const dy = y2 - y1;
   const fx = x1 - cx;
@@ -226,11 +229,13 @@ function lineCircleIntersect(
   const c = fx * fx + fy * fy - r * r;
 
   let discriminant = b * b - 4 * a * c;
-  if (discriminant < 0) return false;
+  if (discriminant < 0 || a === 0) return null;
 
   discriminant = Math.sqrt(discriminant);
   const t1 = (-b - discriminant) / (2 * a);
   const t2 = (-b + discriminant) / (2 * a);
 
-  return (t1 >= 0 && t1 <= 1) || (t2 >= 0 && t2 <= 1);
+  const intersections = [t1, t2].filter(t => t >= 0 && t <= 1);
+  if (intersections.length === 0) return null;
+  return Math.min(...intersections) * Math.sqrt(a);
 }

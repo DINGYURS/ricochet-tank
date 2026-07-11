@@ -201,6 +201,7 @@ vi.mock('../../src/systems/AIController', () => {
 // Now import after all mocks are set up
 import { GameScene } from '../../src/scenes/GameScene';
 import { DEFAULT_GAME_SETTINGS, type GameSettings } from '../../src/config';
+import { circleCircleOverlap } from '../../src/systems/Collision';
 
 describe('GameScene', () => {
   it('uses the canonical GameSettings interface', () => {
@@ -320,6 +321,28 @@ describe('GameScene', () => {
     (scene as any).roundState = 'PLAYING';
 
     (scene as any).eliminatePlayers([0, 1, 2]);
+
+    expect((scene as any).roundState).toBe('ROUND_OVER');
+    expect((scene as any).scores).toEqual([0, 0, 0]);
+    expect((scene as any).statusText.setText).toHaveBeenCalledWith('DRAW!');
+  });
+
+  it('aggregates separate eliminations in one frame before resolving the round', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 3 });
+    (scene as any).roundState = 'PLAYING';
+    (scene as any).eliminatePlayers([0]);
+    (scene as any).tanks[1].x = 100;
+    (scene as any).tanks[1].y = 100;
+    (scene as any).tanks[2].x = 200;
+    (scene as any).tanks[2].y = 200;
+    vi.mocked(circleCircleOverlap).mockImplementation((x1, y1, _r1, x2, y2) => x1 === x2 && y1 === y2);
+    (scene as any).mines = [
+      { x: 100, y: 100, triggerRadius: 40, ownerId: 0, active: true, update: vi.fn(), destroy() { this.active = false; } },
+      { x: 200, y: 200, triggerRadius: 40, ownerId: 0, active: true, update: vi.fn(), destroy() { this.active = false; } },
+    ];
+
+    scene.update(0, 16);
 
     expect((scene as any).roundState).toBe('ROUND_OVER');
     expect((scene as any).scores).toEqual([0, 0, 0]);
