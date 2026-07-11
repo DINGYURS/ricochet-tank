@@ -552,4 +552,21 @@ describe('GameScene', () => {
     expect(active).toHaveBeenCalledWith(tank, true, 'Laser');
     expect(tank.heldPowerUp).toBe('Rocket');
   });
+
+  it('preserves a newly collected active weapon of the same type', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    (scene as any).roundState = 'PLAYING';
+    mockPlayer1Input.shoot = true;
+    const tank = (scene as any).tanks[0];
+    tank.heldPowerUp = 'Laser';
+    vi.spyOn((scene as any).powerUpManager, 'update').mockImplementation(() => {
+      expect(tank.heldPowerUp).toBeNull();
+      tank.heldPowerUp = 'Laser';
+    });
+
+    scene.update(0, 16);
+
+    expect(tank.heldPowerUp).toBe('Laser');
+  });
 });

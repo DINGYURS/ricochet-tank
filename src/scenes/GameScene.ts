@@ -255,9 +255,11 @@ export class GameScene extends Phaser.Scene {
         usePowerUp: input.usePowerUp,
         heldPowerUp: tank.heldPowerUp,
       });
+      const activePowerUp = action === 'active' ? tank.heldPowerUp : null;
+      if (action === 'active') tank.heldPowerUp = null;
       return {
         action,
-        activePowerUp: action === 'active' ? tank.heldPowerUp : null,
+        activePowerUp,
       };
     });
     for (let playerId = 0; playerId < this.tanks.length; playerId++) {
@@ -364,7 +366,12 @@ export class GameScene extends Phaser.Scene {
     for (let playerId = 0; playerId < this.tanks.length; playerId++) {
       const command = weaponCommands[playerId];
       if (this.tanks[playerId].alive && command.action === 'active') {
-        this.executeWeaponAction(this.tanks[playerId], 'active', currentTimeMs, command.activePowerUp);
+        this.executeWeaponAction(
+          this.tanks[playerId],
+          'active',
+          currentTimeMs,
+          command.activePowerUp ?? undefined,
+        );
       }
     }
 
@@ -530,14 +537,14 @@ export class GameScene extends Phaser.Scene {
       usePowerUp: input.usePowerUp,
       heldPowerUp: tank.heldPowerUp,
     });
-    this.executeWeaponAction(tank, action, currentTimeMs, action === 'active' ? tank.heldPowerUp : null);
+    this.executeWeaponAction(tank, action, currentTimeMs);
   }
 
   private executeWeaponAction(
     tank: Tank,
     action: WeaponAction,
     currentTimeMs: number,
-    activePowerUp: PowerUpType | null = null,
+    activePowerUp?: PowerUpType,
   ): void {
     if (action === 'active') {
       this.handleUsePowerUp(tank, true, activePowerUp);
@@ -651,13 +658,13 @@ export class GameScene extends Phaser.Scene {
     );
   }
 
-  private handleUsePowerUp(tank: Tank, usePressed: boolean, activePowerUp?: PowerUpType | null): void {
+  private handleUsePowerUp(tank: Tank, usePressed: boolean, activePowerUp?: PowerUpType): void {
     if (!usePressed) return;
     const type = activePowerUp ?? tank.heldPowerUp;
     if (!type) return;
     if (POWERUP_VISUALS[type].passive) return;
 
-    if (tank.heldPowerUp === type) tank.heldPowerUp = null;
+    if (activePowerUp === undefined) tank.heldPowerUp = null;
 
     switch (type) {
       case PowerUpType.Laser: {
