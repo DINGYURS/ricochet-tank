@@ -38,6 +38,11 @@ enum RoundState {
   MATCH_OVER = 'MATCH_OVER',
 }
 
+interface WeaponCommand {
+  action: WeaponAction;
+  activePowerUp: PowerUpType | null;
+}
+
 export class GameScene extends Phaser.Scene {
   static readonly KEY = 'GameScene';
 
@@ -242,17 +247,21 @@ export class GameScene extends Phaser.Scene {
       this.updateTank(tank, input.forward, input.backward, rotateInput, dt);
     }
 
-    const weaponActions: WeaponAction[] = this.tanks.map((tank, playerId) => {
-      if (!tank.alive) return 'none';
+    const weaponCommands: WeaponCommand[] = this.tanks.map((tank, playerId) => {
+      if (!tank.alive) return { action: 'none', activePowerUp: null };
       const input = inputs[playerId];
-      return resolveWeaponAction({
+      const action = resolveWeaponAction({
         shoot: input.shoot,
         usePowerUp: input.usePowerUp,
         heldPowerUp: tank.heldPowerUp,
       });
+      return {
+        action,
+        activePowerUp: action === 'active' ? tank.heldPowerUp : null,
+      };
     });
     for (let playerId = 0; playerId < this.tanks.length; playerId++) {
-      if (weaponActions[playerId] === 'standard') {
+      if (weaponCommands[playerId].action === 'standard') {
         this.executeWeaponAction(this.tanks[playerId], 'standard', currentTimeMs);
       }
     }
@@ -353,8 +362,9 @@ export class GameScene extends Phaser.Scene {
 
     // Active weapons keep their previous lifecycle position after projectile updates.
     for (let playerId = 0; playerId < this.tanks.length; playerId++) {
-      if (this.tanks[playerId].alive && weaponActions[playerId] === 'active') {
-        this.executeWeaponAction(this.tanks[playerId], 'active', currentTimeMs);
+      const command = weaponCommands[playerId];
+      if (this.tanks[playerId].alive && command.action === 'active') {
+        this.executeWeaponAction(this.tanks[playerId], 'active', currentTimeMs, command.activePowerUp);
       }
     }
 
@@ -520,12 +530,17 @@ export class GameScene extends Phaser.Scene {
       usePowerUp: input.usePowerUp,
       heldPowerUp: tank.heldPowerUp,
     });
-    this.executeWeaponAction(tank, action, currentTimeMs);
+    this.executeWeaponAction(tank, action, currentTimeMs, action === 'active' ? tank.heldPowerUp : null);
   }
 
-  private executeWeaponAction(tank: Tank, action: WeaponAction, currentTimeMs: number): void {
+  private executeWeaponAction(
+    tank: Tank,
+    action: WeaponAction,
+    currentTimeMs: number,
+    activePowerUp: PowerUpType | null = null,
+  ): void {
     if (action === 'active') {
-      this.handleUsePowerUp(tank, true);
+      this.handleUsePowerUp(tank, true, activePowerUp);
     } else if (action === 'standard') {
       this.handleShoot(tank, true, currentTimeMs);
     }
@@ -636,13 +651,13 @@ export class GameScene extends Phaser.Scene {
     );
   }
 
-  private handleUsePowerUp(tank: Tank, usePressed: boolean): void {
+  private handleUsePowerUp(tank: Tank, usePressed: boolean, activePowerUp?: PowerUpType | null): void {
     if (!usePressed) return;
-    if (!tank.heldPowerUp) return;
-    if (POWERUP_VISUALS[tank.heldPowerUp].passive) return;
+    const type = activePowerUp ?? tank.heldPowerUp;
+    if (!type) return;
+    if (POWERUP_VISUALS[type].passive) return;
 
-    const type = tank.heldPowerUp;
-    tank.heldPowerUp = null;
+    if (tank.heldPowerUp === type) tank.heldPowerUp = null;
 
     switch (type) {
       case PowerUpType.Laser: {

@@ -534,4 +534,22 @@ describe('GameScene', () => {
     expect(active).not.toHaveBeenCalled();
     expect(tank.heldPowerUp).toBe('Laser');
   });
+
+  it('fires the snapshotted active weapon when a pickup replaces the held slot', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    (scene as any).roundState = 'PLAYING';
+    mockPlayer1Input.shoot = true;
+    const tank = (scene as any).tanks[0];
+    tank.heldPowerUp = 'Laser';
+    vi.spyOn((scene as any).powerUpManager, 'update').mockImplementation(() => {
+      tank.heldPowerUp = 'Rocket';
+    });
+    const active = vi.spyOn(scene as any, 'handleUsePowerUp');
+
+    scene.update(0, 16);
+
+    expect(active).toHaveBeenCalledWith(tank, true, 'Laser');
+    expect(tank.heldPowerUp).toBe('Rocket');
+  });
 });
