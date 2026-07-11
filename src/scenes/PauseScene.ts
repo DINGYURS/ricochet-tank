@@ -33,14 +33,14 @@ export function getPauseActionLabels(status: Pick<PauseStatus, 'soundEnabled' | 
 }
 
 export function getControlLines(settings: GameSettings): string[] {
-  const lines = ['P1: W/A/S/D + Space · E power-up'];
+  const lines = ['P1: W/A/S/D · Space weapon (E compatible)'];
   if (settings.mode === 'ai') {
     const difficulty = settings.aiDifficulty[0].toUpperCase() + settings.aiDifficulty.slice(1);
     lines.push(`P2: AI (${difficulty})`);
   } else {
-    lines.push('P2: Arrow Keys + Enter · . power-up');
+    lines.push('P2: Arrow Keys · Enter weapon (. compatible)');
     if (settings.localPlayers === 3) {
-      lines.push('P3: Mouse move + Left click · Right click power-up');
+      lines.push('P3: Mouse move · Left click weapon (Right compatible)');
     }
   }
   return lines;

@@ -47,15 +47,15 @@ describe('PauseScene', () => {
 
   it('shows controls for every local player in the selected mode', () => {
     expect(getControlLines({ mode: 'local', localPlayers: 3 })).toEqual([
-      'P1: W/A/S/D + Space · E power-up',
-      'P2: Arrow Keys + Enter · . power-up',
-      'P3: Mouse move + Left click · Right click power-up',
+      'P1: W/A/S/D · Space weapon (E compatible)',
+      'P2: Arrow Keys · Enter weapon (. compatible)',
+      'P3: Mouse move · Left click weapon (Right compatible)',
     ]);
   });
 
   it('identifies the AI opponent instead of showing P2 controls', () => {
     expect(getControlLines({ mode: 'ai', aiDifficulty: 'hard' })).toEqual([
-      'P1: W/A/S/D + Space · E power-up',
+      'P1: W/A/S/D · Space weapon (E compatible)',
       'P2: AI (Hard)',
     ]);
   });
