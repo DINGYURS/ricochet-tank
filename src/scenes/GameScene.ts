@@ -8,6 +8,7 @@ import {
   AMMO_MAX, AMMO_REFILL_INTERVAL,
   SHIELD_DURATION, RAPID_FIRE_DURATION, DOUBLE_SHOT_DURATION,
   ROCKET_TURN_SPEED, LASER_LIFETIME, POWERUP_RADIUS,
+  DEATH_RAY_CHARGE_DURATION, DEATH_RAY_BEAM_LIFETIME,
   DEFAULT_GAME_SETTINGS,
   DEBUG_AI_PATHS,
   type GameSettings,
@@ -29,6 +30,7 @@ import { AIController } from '../systems/AIController';
 import { evaluateRound } from '../systems/MatchRules';
 import { PauseScene, type PauseStatus } from './PauseScene';
 import { resolveWeaponAction, type WeaponAction } from '../systems/WeaponInputResolver';
+import { advanceDeathRayCharge, traceDeathRay, type DeathRayChargeState, type Point } from '../systems/DeathRay';
 
 enum RoundState {
   GENERATING = 'GENERATING',
@@ -41,6 +43,12 @@ enum RoundState {
 interface WeaponCommand {
   action: WeaponAction;
   activePowerUp: PowerUpType | null;
+}
+
+interface ActiveDeathRayCharge {
+  state: DeathRayChargeState;
+  origin: Point;
+  direction: Point;
 }
 
 export class GameScene extends Phaser.Scene {
@@ -72,6 +80,8 @@ export class GameScene extends Phaser.Scene {
   private countdownEvent: Phaser.Time.TimerEvent | null = null;
   private roundEndEvent: Phaser.Time.TimerEvent | null = null;
   private matchOverSpaceHandler: (() => void) | null = null;
+  private deathRayCharges = new Map<number, ActiveDeathRayCharge>();
+  private deathRayBeams: Array<{ graphics: Phaser.GameObjects.Graphics; remaining: number }> = [];
 
   constructor() {
     super({ key: GameScene.KEY });
@@ -134,6 +144,7 @@ export class GameScene extends Phaser.Scene {
 
   private startRound(): void {
     this.clearAsyncTasks();
+    this.clearDeathRays();
     this.roundState = RoundState.GENERATING;
 
     for (const wall of this.walls) wall.destroy();
@@ -214,6 +225,9 @@ export class GameScene extends Phaser.Scene {
     const dt = Math.min(delta / 1000, MAX_DT);
     const currentTimeMs = this.time.now;
     const eliminatedThisFrame = new Set<number>();
+    const chargingPlayerIds = new Set(this.deathRayCharges.keys());
+
+    this.updateDeathRays(dt, eliminatedThisFrame);
 
     const inputs: PlayerInput[] = [this.inputManager.getPlayer1Input()];
 
@@ -242,13 +256,13 @@ export class GameScene extends Phaser.Scene {
     for (let playerId = 0; playerId < this.tanks.length; playerId++) {
       const tank = this.tanks[playerId];
       const input = inputs[playerId];
-      if (!tank.alive) continue;
+      if (!tank.alive || chargingPlayerIds.has(tank.playerId)) continue;
       const rotateInput = (input.rotateLeft ? -1 : 0) + (input.rotateRight ? 1 : 0);
       this.updateTank(tank, input.forward, input.backward, rotateInput, dt);
     }
 
     const weaponCommands: WeaponCommand[] = this.tanks.map((tank, playerId) => {
-      if (!tank.alive) return { action: 'none', activePowerUp: null };
+      if (!tank.alive || chargingPlayerIds.has(tank.playerId)) return { action: 'none', activePowerUp: null };
       const input = inputs[playerId];
       const action = resolveWeaponAction({
         shoot: input.shoot,
@@ -471,6 +485,56 @@ export class GameScene extends Phaser.Scene {
       this.input.keyboard?.off('keydown-SPACE', this.matchOverSpaceHandler);
       this.matchOverSpaceHandler = null;
     }
+    this.clearDeathRays();
+  }
+
+  private clearDeathRays(): void {
+    this.deathRayCharges.clear();
+    for (const beam of this.deathRayBeams) beam.graphics.destroy();
+    this.deathRayBeams = [];
+  }
+
+  private updateDeathRays(dt: number, eliminatedThisFrame: Set<number>): void {
+    this.deathRayBeams = this.deathRayBeams.filter(beam => {
+      beam.remaining -= dt;
+      if (beam.remaining <= 0) {
+        beam.graphics.destroy();
+        return false;
+      }
+      return true;
+    });
+
+    for (const [playerId, charge] of this.deathRayCharges) {
+      const advanced = advanceDeathRayCharge(charge.state, dt, DEATH_RAY_CHARGE_DURATION);
+      charge.state = advanced.state;
+      if (!advanced.fire) continue;
+
+      const result = traceDeathRay(
+        charge.origin,
+        charge.direction,
+        { x: 0, y: 0, width: GAME_WIDTH, height: GAME_HEIGHT },
+        this.tanks,
+      );
+      const graphics = this.add.graphics().setDepth(50);
+      graphics.lineStyle(7, 0x00eeff, 0.9);
+      graphics.lineBetween(charge.origin.x, charge.origin.y, result.end.x, result.end.y);
+      this.deathRayBeams.push({ graphics, remaining: DEATH_RAY_BEAM_LIFETIME });
+      this.soundManager.laserFire();
+
+      for (const hitPlayerId of result.hitPlayerIds) {
+        const target = this.tanks.find(tank => tank.playerId === hitPlayerId);
+        if (!target?.alive) continue;
+        if (target.shieldActive) {
+          target.shieldActive = false;
+          target.passiveEffects.delete(PowerUpType.Shield);
+          target.passiveTimers.delete(PowerUpType.Shield);
+          this.soundManager.shieldBreak();
+        } else {
+          eliminatedThisFrame.add(hitPlayerId);
+        }
+      }
+      this.deathRayCharges.delete(playerId);
+    }
   }
 
   private updateTank(tank: Tank, forward: boolean, backward: boolean, rotateInput: number, dt: number): void {
@@ -690,6 +754,15 @@ export class GameScene extends Phaser.Scene {
         const bullets = fireShotgun(this, tank, this.time.now);
         for (const b of bullets) this.bullets.push(b);
         this.soundManager.shotgunFire();
+        break;
+      }
+      case PowerUpType.DeathRay: {
+        const origin = tank.getBarrelTip();
+        this.deathRayCharges.set(tank.playerId, {
+          state: { elapsed: 0, fired: false },
+          origin,
+          direction: { x: Math.cos(tank.rotation), y: Math.sin(tank.rotation) },
+        });
         break;
       }
     }

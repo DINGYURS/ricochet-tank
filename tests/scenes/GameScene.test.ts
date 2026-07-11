@@ -24,7 +24,7 @@ vi.mock('phaser', () => {
       this.input = { keyboard: { once: vi.fn(), off: vi.fn(), addKey: vi.fn(() => ({ isDown: false })), addCapture: vi.fn() } };
       this.add = {
         text: vi.fn(() => ({ setOrigin: vi.fn().mockReturnThis(), setDepth: vi.fn().mockReturnThis(), setAlpha: vi.fn().mockReturnThis(), setText: vi.fn(), setColor: vi.fn() })),
-        graphics: vi.fn(() => ({ setDepth: vi.fn().mockReturnThis(), clear: vi.fn(), fillStyle: vi.fn(), fillRect: vi.fn(), fillCircle: vi.fn(), lineStyle: vi.fn(), strokeRect: vi.fn() })),
+        graphics: vi.fn(() => ({ setDepth: vi.fn().mockReturnThis(), clear: vi.fn(), fillStyle: vi.fn(), fillRect: vi.fn(), fillCircle: vi.fn(), lineStyle: vi.fn(), lineBetween: vi.fn(), strokeRect: vi.fn(), destroy: vi.fn() })),
         circle: vi.fn(() => ({ setPosition: vi.fn(), destroy: vi.fn() })),
       };
       this.time = {
@@ -114,6 +114,7 @@ vi.mock('../../src/systems/SoundManager', () => {
       minePlace() {}
       mineExplode() {}
       shotgunFire() {}
+      laserFire() {}
     },
   };
 });
@@ -152,6 +153,7 @@ vi.mock('../../src/objects/Tank', () => {
       setPosition() {}
       setAlive(alive: boolean) { this.alive = alive; }
       clearPowerUps() {}
+      getBarrelTip() { return { x: this.x + 15, y: this.y }; }
     },
     computeTankMovement: vi.fn(),
   };
@@ -170,7 +172,7 @@ vi.mock('../../src/objects/Bullet', () => {
 });
 
 vi.mock('../../src/enums/PowerUpType', () => ({
-  PowerUpType: { Shield: 'Shield', RapidFire: 'RapidFire', DoubleShot: 'DoubleShot', Laser: 'Laser', Rocket: 'Rocket', Mine: 'Mine', Shotgun: 'Shotgun' },
+  PowerUpType: { Shield: 'Shield', RapidFire: 'RapidFire', DoubleShot: 'DoubleShot', Laser: 'Laser', Rocket: 'Rocket', Mine: 'Mine', Shotgun: 'Shotgun', DeathRay: 'DeathRay', RCMissile: 'RCMissile', FragBomb: 'FragBomb' },
   POWERUP_VISUALS: {
     Shield: { color: 0x4488ff, label: 'Shield', passive: true },
     RapidFire: { color: 0xff8800, label: 'Rapid Fire', passive: true },
@@ -179,6 +181,9 @@ vi.mock('../../src/enums/PowerUpType', () => ({
     Rocket: { color: 0xff4400, label: 'Rocket', passive: false },
     Mine: { color: 0x8800ff, label: 'Mine', passive: false },
     Shotgun: { color: 0xffaa00, label: 'Shotgun', passive: false },
+    DeathRay: { color: 0x00eeff, label: 'Death Ray', passive: false },
+    RCMissile: { color: 0x99ff33, label: 'RC Missile', passive: false },
+    FragBomb: { color: 0xffcc33, label: 'Frag Bomb', passive: false },
   },
   ALL_POWERUP_TYPES: ['Shield', 'RapidFire', 'DoubleShot', 'Laser', 'Rocket', 'Mine', 'Shotgun'],
 }));
@@ -568,5 +573,51 @@ describe('GameScene', () => {
     scene.update(0, 16);
 
     expect(tank.heldPowerUp).toBe('Laser');
+  });
+
+  it('starts a Death Ray charge from unified weapon input', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const tank = (scene as any).tanks[0];
+    tank.heldPowerUp = 'DeathRay';
+
+    (scene as any).handleWeaponInput(tank, { shoot: true, usePowerUp: false }, 0);
+
+    expect((scene as any).deathRayCharges.has(0)).toBe(true);
+    expect(tank.heldPowerUp).toBeNull();
+  });
+
+  it('locks a charging tank and fires through the arena at charge completion', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 3 });
+    const [owner, target, survivor] = (scene as any).tanks;
+    target.y = owner.y;
+    survivor.y = 300;
+    owner.heldPowerUp = 'DeathRay';
+    (scene as any).handleWeaponInput(owner, { shoot: true, usePowerUp: false }, 0);
+    (scene as any).deathRayCharges.get(0).state.elapsed = 0.95;
+    (scene as any).roundState = 'PLAYING';
+    mockPlayer1Input.forward = true;
+    const updateTank = vi.spyOn(scene as any, 'updateTank');
+
+    scene.update(0, 1000);
+
+    expect(updateTank.mock.calls.some(call => call[0] === owner)).toBe(false);
+    expect(target.alive).toBe(false);
+    expect((scene as any).deathRayBeams).toHaveLength(1);
+  });
+
+  it('cleans Death Ray charge and beam state on match restart', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const graphics = { destroy: vi.fn() };
+    (scene as any).deathRayCharges.set(0, { state: { elapsed: 0, fired: false }, origin: { x: 0, y: 0 }, direction: { x: 1, y: 0 } });
+    (scene as any).deathRayBeams = [{ graphics, remaining: 1 }];
+
+    scene.restartMatch();
+
+    expect((scene as any).deathRayCharges.size).toBe(0);
+    expect(graphics.destroy).toHaveBeenCalledOnce();
+    expect((scene as any).deathRayBeams).toEqual([]);
   });
 });
