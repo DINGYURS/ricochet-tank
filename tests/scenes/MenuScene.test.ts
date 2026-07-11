@@ -31,9 +31,18 @@ vi.mock('phaser', () => {
   return { default: { Scene } };
 });
 
-import { MenuScene } from '../../src/scenes/MenuScene';
+import { DEFAULT_GAME_SETTINGS } from '../../src/config';
+import { MENU_OPTIONS, MenuScene } from '../../src/scenes/MenuScene';
 
 describe('MenuScene', () => {
+  it('offers complete settings for two- and three-player local matches', () => {
+    expect(MENU_OPTIONS.map(option => option.label)).toEqual(['2 Players', '3 Players', 'VS AI']);
+    expect(MENU_OPTIONS[0].settings).toEqual({ mode: 'local', localPlayers: 2 });
+    expect(MENU_OPTIONS[1].settings).toEqual({ mode: 'local', localPlayers: 3 });
+    expect(MENU_OPTIONS[2].settings).toBeNull();
+    expect(DEFAULT_GAME_SETTINGS).toEqual({ mode: 'local', localPlayers: 2 });
+  });
+
   it('exists and is a class', () => {
     expect(MenuScene).toBeDefined();
     expect(typeof MenuScene).toBe('function');

@@ -199,12 +199,12 @@ import { DEFAULT_GAME_SETTINGS, type GameSettings } from '../../src/config';
 
 describe('GameScene', () => {
   it('uses the canonical GameSettings interface', () => {
-    const settings: GameSettings = { mode: 'local', aiDifficulty: 'medium' };
+    const settings: GameSettings = { mode: 'local', localPlayers: 2 };
     expect(settings.mode).toBe('local');
   });
 
   it('uses the canonical local defaults', () => {
-    expect(DEFAULT_GAME_SETTINGS).toEqual({ mode: 'local', aiDifficulty: 'medium' });
+    expect(DEFAULT_GAME_SETTINGS).toEqual({ mode: 'local', localPlayers: 2 });
   });
 
   it('can be instantiated', () => {
@@ -225,14 +225,14 @@ describe('GameScene', () => {
   });
 
   it('accepts GameSettings with local mode', () => {
-    const settings: GameSettings = { mode: 'local', aiDifficulty: 'medium' };
+    const settings: GameSettings = { mode: 'local', localPlayers: 2 };
     expect(settings.mode).toBe('local');
-    expect(settings.aiDifficulty).toBe('medium');
+    expect(settings.localPlayers).toBe(2);
   });
 
-  it('accepts local settings without an explicit difficulty', () => {
-    const settings: GameSettings = { mode: 'local' };
-    expect(settings.aiDifficulty).toBeUndefined();
+  it('accepts three-player local settings', () => {
+    const settings: GameSettings = { mode: 'local', localPlayers: 3 };
+    expect(settings.localPlayers).toBe(3);
   });
 
   it('create method can be called with no settings (defaults to local)', () => {
@@ -242,7 +242,7 @@ describe('GameScene', () => {
 
   it('create method accepts local settings', () => {
     const scene = new GameScene();
-    expect(() => (scene as any).create({ mode: 'local' })).not.toThrow();
+    expect(() => (scene as any).create({ mode: 'local', localPlayers: 2 })).not.toThrow();
   });
 
   it('create method accepts ai settings with difficulty', () => {
@@ -260,7 +260,7 @@ describe('GameScene', () => {
   it('settings property defaults to local when create called without args', () => {
     const scene = new GameScene();
     (scene as any).create();
-    expect((scene as any).settings).toEqual({ mode: 'local', aiDifficulty: 'medium' });
+    expect((scene as any).settings).toEqual({ mode: 'local', localPlayers: 2 });
   });
 
   it('settings property reflects provided ai settings', () => {

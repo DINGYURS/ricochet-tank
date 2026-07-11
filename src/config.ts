@@ -70,14 +70,15 @@ export { AI_DIFFICULTY_PRESETS, AI_DODGE_THRESHOLD } from './systems/AIDifficult
 // Game Settings
 export type AIDifficulty = 'easy' | 'medium' | 'hard';
 
-export interface GameSettings {
-  mode: 'local' | 'ai';
-  aiDifficulty?: AIDifficulty;
-}
+export type LocalPlayerCount = 2 | 3;
+
+export type GameSettings =
+  | { mode: 'local'; localPlayers: LocalPlayerCount }
+  | { mode: 'ai'; aiDifficulty: AIDifficulty };
 
 export const DEFAULT_GAME_SETTINGS: GameSettings = {
   mode: 'local',
-  aiDifficulty: 'medium',
+  localPlayers: 2,
 };
 
 // Development diagnostics
