@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import type { Tank } from '../objects/Tank';
+import { MouseController } from './MouseController';
 
 export interface PlayerInput {
   forward: boolean;
@@ -10,6 +12,7 @@ export interface PlayerInput {
 }
 
 export class InputManager {
+  private readonly mouseController: MouseController;
   private keys!: {
     W: Phaser.Input.Keyboard.Key;
     S: Phaser.Input.Keyboard.Key;
@@ -52,6 +55,8 @@ export class InputManager {
       Phaser.Input.Keyboard.KeyCodes.LEFT,
       Phaser.Input.Keyboard.KeyCodes.RIGHT,
     ]);
+
+    this.mouseController = new MouseController(scene);
   }
 
   getPlayer1Input(): PlayerInput {
@@ -74,6 +79,10 @@ export class InputManager {
       shoot: Phaser.Input.Keyboard.JustDown(this.keys.ENTER),
       usePowerUp: Phaser.Input.Keyboard.JustDown(this.keys.PERIOD),
     };
+  }
+
+  getPlayer3Input(tank: Pick<Tank, 'x' | 'y' | 'rotation'>): PlayerInput {
+    return this.mouseController.getInput(tank);
   }
 
   isEscapePressed(): boolean {
