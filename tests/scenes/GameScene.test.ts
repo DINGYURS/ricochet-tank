@@ -603,6 +603,8 @@ describe('GameScene', () => {
     scene.update(0, 1000);
 
     expect(updateTank.mock.calls.some(call => call[0] === owner)).toBe(false);
+    expect(updateTank.mock.calls.some(call => call[0] === target)).toBe(false);
+    expect(owner.alive).toBe(true);
     expect(target.alive).toBe(false);
     expect((scene as any).deathRayBeams).toHaveLength(1);
   });
@@ -619,5 +621,18 @@ describe('GameScene', () => {
     expect((scene as any).deathRayCharges.size).toBe(0);
     expect(graphics.destroy).toHaveBeenCalledOnce();
     expect((scene as any).deathRayBeams).toEqual([]);
+  });
+
+  it('cancels a Death Ray charge when its owner is eliminated', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 3 });
+    const owner = (scene as any).tanks[0];
+    owner.heldPowerUp = 'DeathRay';
+    (scene as any).handleWeaponInput(owner, { shoot: true, usePowerUp: false }, 0);
+    (scene as any).roundState = 'PLAYING';
+
+    (scene as any).eliminatePlayers([0]);
+
+    expect((scene as any).deathRayCharges.has(0)).toBe(false);
   });
 });

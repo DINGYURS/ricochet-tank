@@ -20,11 +20,12 @@ describe('traceDeathRay', () => {
       { x: 1, y: 0 },
       { x: 0, y: 0, width: 800, height: 600 },
       [],
+      0,
     );
     expect(result.end).toEqual({ x: 800, y: 100 });
   });
 
-  it('returns every intersected tank in distance order including the owner', () => {
+  it('returns every intersected opponent in distance order and excludes the owner', () => {
     const result = traceDeathRay(
       { x: 0, y: 100 },
       { x: 1, y: 0 },
@@ -35,8 +36,9 @@ describe('traceDeathRay', () => {
         { playerId: 1, alive: true, x: 300, y: 100, radius: 16 },
         { playerId: 3, alive: false, x: 200, y: 100, radius: 16 },
       ],
+      0,
     );
-    expect(result.hitPlayerIds).toEqual([0, 1, 2]);
+    expect(result.hitPlayerIds).toEqual([1, 2]);
   });
 
   it('normalizes diagonal direction before finding the boundary', () => {
@@ -45,6 +47,7 @@ describe('traceDeathRay', () => {
       { x: 2, y: 2 },
       { x: 0, y: 0, width: 800, height: 600 },
       [],
+      0,
     );
     expect(result.end.x).toBeCloseTo(700);
     expect(result.end.y).toBeCloseTo(600);

@@ -35,6 +35,7 @@ export function traceDeathRay(
   direction: Point,
   bounds: ArenaBounds,
   tanks: DeathRayTarget[],
+  ownerId: number,
 ): { end: Point; hitPlayerIds: number[] } {
   const magnitude = Math.hypot(direction.x, direction.y);
   if (magnitude === 0) return { end: { ...origin }, hitPlayerIds: [] };
@@ -49,7 +50,7 @@ export function traceDeathRay(
   const end = { x: origin.x + dx * distance, y: origin.y + dy * distance };
 
   const hits = tanks
-    .filter(tank => tank.alive)
+    .filter(tank => tank.alive && tank.playerId !== ownerId)
     .map(tank => ({
       playerId: tank.playerId,
       distance: firstCircleIntersectionDistance(origin, end, tank),

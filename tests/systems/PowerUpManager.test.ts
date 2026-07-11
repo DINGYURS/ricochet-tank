@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { PowerUpType, ALL_POWERUP_TYPES } from '../../src/enums/PowerUpType';
+import { PowerUpType, ALL_POWERUP_TYPES, SPAWNABLE_POWERUP_TYPES } from '../../src/enums/PowerUpType';
 import { PowerUpManager } from '../../src/systems/PowerUpManager';
 
 describe('PowerUpManager logic', () => {
@@ -10,6 +10,12 @@ describe('PowerUpManager logic', () => {
   it('random type selection returns a valid type', () => {
     const type = ALL_POWERUP_TYPES[Math.floor(Math.random() * ALL_POWERUP_TYPES.length)];
     expect(ALL_POWERUP_TYPES).toContain(type);
+  });
+
+  it('does not spawn unfinished classic weapons', () => {
+    expect(SPAWNABLE_POWERUP_TYPES).toContain(PowerUpType.DeathRay);
+    expect(SPAWNABLE_POWERUP_TYPES).not.toContain(PowerUpType.RCMissile);
+    expect(SPAWNABLE_POWERUP_TYPES).not.toContain(PowerUpType.FragBomb);
   });
 });
 

@@ -228,6 +228,9 @@ export class GameScene extends Phaser.Scene {
     const chargingPlayerIds = new Set(this.deathRayCharges.keys());
 
     this.updateDeathRays(dt, eliminatedThisFrame);
+    for (const playerId of eliminatedThisFrame) {
+      this.tanks.find(tank => tank.playerId === playerId)?.setAlive(false);
+    }
 
     const inputs: PlayerInput[] = [this.inputManager.getPlayer1Input()];
 
@@ -505,6 +508,11 @@ export class GameScene extends Phaser.Scene {
     });
 
     for (const [playerId, charge] of this.deathRayCharges) {
+      const owner = this.tanks.find(tank => tank.playerId === playerId);
+      if (!owner?.alive) {
+        this.deathRayCharges.delete(playerId);
+        continue;
+      }
       const advanced = advanceDeathRayCharge(charge.state, dt, DEATH_RAY_CHARGE_DURATION);
       charge.state = advanced.state;
       if (!advanced.fire) continue;
@@ -514,6 +522,7 @@ export class GameScene extends Phaser.Scene {
         charge.direction,
         { x: 0, y: 0, width: GAME_WIDTH, height: GAME_HEIGHT },
         this.tanks,
+        playerId,
       );
       const graphics = this.add.graphics().setDepth(50);
       graphics.lineStyle(7, 0x00eeff, 0.9);
@@ -662,6 +671,7 @@ export class GameScene extends Phaser.Scene {
     if (this.roundState !== RoundState.PLAYING) return;
 
     for (const playerId of new Set(playerIds)) {
+      this.deathRayCharges.delete(playerId);
       const tank = this.tanks.find(candidate => candidate.playerId === playerId);
       if (tank?.alive) tank.setAlive(false);
     }

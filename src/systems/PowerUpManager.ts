@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { PowerUp } from '../objects/PowerUp';
-import { PowerUpType, ALL_POWERUP_TYPES, POWERUP_VISUALS } from '../enums/PowerUpType';
+import { PowerUpType, SPAWNABLE_POWERUP_TYPES, POWERUP_VISUALS } from '../enums/PowerUpType';
 import {
   POWERUP_SPAWN_INTERVAL_MIN, POWERUP_SPAWN_INTERVAL_MAX,
   POWERUP_MAX_ON_MAP, POWERUP_DESPAWN_TIME,
@@ -60,7 +60,7 @@ export class PowerUpManager {
     const pos = this.findEmptyPosition();
     if (!pos) return;
 
-    const type = ALL_POWERUP_TYPES[Math.floor(Math.random() * ALL_POWERUP_TYPES.length)];
+    const type = SPAWNABLE_POWERUP_TYPES[Math.floor(Math.random() * SPAWNABLE_POWERUP_TYPES.length)];
     const pu = new PowerUp(this.scene, pos.x, pos.y, type);
     this.powerUps.push(pu);
   }
