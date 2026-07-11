@@ -28,6 +28,7 @@ import { Mine } from '../objects/Mine';
 import { AIController } from '../systems/AIController';
 import { evaluateRound } from '../systems/MatchRules';
 import { PauseScene, type PauseStatus } from './PauseScene';
+import { resolveWeaponAction } from '../systems/WeaponInputResolver';
 
 enum RoundState {
   GENERATING = 'GENERATING',
@@ -239,7 +240,6 @@ export class GameScene extends Phaser.Scene {
       if (!tank.alive) continue;
       const rotateInput = (input.rotateLeft ? -1 : 0) + (input.rotateRight ? 1 : 0);
       this.updateTank(tank, input.forward, input.backward, rotateInput, dt);
-      this.handleShoot(tank, input.shoot, currentTimeMs);
     }
 
     // Power-up manager
@@ -336,10 +336,10 @@ export class GameScene extends Phaser.Scene {
     }
     this.mines = this.mines.filter(m => m.active);
 
-    // Handle use-power-up input
+    // Resolve primary and compatibility inputs to exactly one weapon action.
     for (let playerId = 0; playerId < this.tanks.length; playerId++) {
       if (this.tanks[playerId].alive) {
-        this.handleUsePowerUp(this.tanks[playerId], inputs[playerId].usePowerUp);
+        this.handleWeaponInput(this.tanks[playerId], inputs[playerId], currentTimeMs);
       }
     }
 
@@ -493,6 +493,23 @@ export class GameScene extends Phaser.Scene {
       delay: cooldown * 1000,
       callback: () => { tank.shootCooldown = 0; },
     });
+  }
+
+  private handleWeaponInput(
+    tank: Tank,
+    input: Pick<PlayerInput, 'shoot' | 'usePowerUp'>,
+    currentTimeMs: number,
+  ): void {
+    const action = resolveWeaponAction({
+      shoot: input.shoot,
+      usePowerUp: input.usePowerUp,
+      heldPowerUp: tank.heldPowerUp,
+    });
+    if (action === 'active') {
+      this.handleUsePowerUp(tank, true);
+    } else if (action === 'standard') {
+      this.handleShoot(tank, true, currentTimeMs);
+    }
   }
 
   private handleBulletWallCollision(bullet: Bullet, _dt: number): void {

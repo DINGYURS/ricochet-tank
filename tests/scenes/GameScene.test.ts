@@ -460,4 +460,43 @@ describe('GameScene', () => {
     expect((scene as any).input.keyboard.off).toHaveBeenCalledWith('keydown-SPACE', oldHandler);
     expect((scene as any).matchOverSpaceHandler).toBeNull();
   });
+
+  it('routes ordinary primary fire to standard shooting only', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const tank = (scene as any).tanks[0];
+    const standard = vi.spyOn(scene as any, 'handleShoot');
+    const active = vi.spyOn(scene as any, 'handleUsePowerUp');
+
+    (scene as any).handleWeaponInput(tank, { shoot: true, usePowerUp: false }, 100);
+
+    expect(standard).toHaveBeenCalledOnce();
+    expect(active).not.toHaveBeenCalled();
+  });
+
+  it('routes primary fire with an active weapon to active handling only', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const tank = (scene as any).tanks[0];
+    tank.heldPowerUp = 'Laser';
+    const standard = vi.spyOn(scene as any, 'handleShoot');
+    const active = vi.spyOn(scene as any, 'handleUsePowerUp');
+
+    (scene as any).handleWeaponInput(tank, { shoot: true, usePowerUp: false }, 100);
+
+    expect(standard).not.toHaveBeenCalled();
+    expect(active).toHaveBeenCalledOnce();
+  });
+
+  it('executes an active weapon once when primary and legacy inputs coincide', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const tank = (scene as any).tanks[0];
+    tank.heldPowerUp = 'Rocket';
+    const active = vi.spyOn(scene as any, 'handleUsePowerUp');
+
+    (scene as any).handleWeaponInput(tank, { shoot: true, usePowerUp: true }, 100);
+
+    expect(active).toHaveBeenCalledOnce();
+  });
 });
