@@ -27,6 +27,7 @@ import { Rocket } from '../objects/Rocket';
 import { Mine } from '../objects/Mine';
 import { AIController } from '../systems/AIController';
 import { evaluateRound } from '../systems/MatchRules';
+import { PauseScene, type PauseStatus } from './PauseScene';
 
 enum RoundState {
   GENERATING = 'GENERATING',
@@ -37,6 +38,8 @@ enum RoundState {
 }
 
 export class GameScene extends Phaser.Scene {
+  static readonly KEY = 'GameScene';
+
   private roundState: RoundState = RoundState.GENERATING;
   private scores: number[] = [];
   private inputManager!: InputManager;
@@ -58,18 +61,23 @@ export class GameScene extends Phaser.Scene {
   private settings: GameSettings = { ...DEFAULT_GAME_SETTINGS };
   private aiController: AIController | null = null;
   private aiDebugGraphics: Phaser.GameObjects.Graphics | null = null;
+  private soundEnabled = true;
+  private powerUpsEnabled = true;
 
   constructor() {
-    super({ key: 'GameScene' });
+    super({ key: GameScene.KEY });
   }
 
   create(settings?: GameSettings): void {
     this.settings = settings ?? { ...DEFAULT_GAME_SETTINGS };
     this.aiController = null;
+    this.soundEnabled = true;
+    this.powerUpsEnabled = true;
     const playerCount = this.settings.mode === 'local' ? this.settings.localPlayers : 2;
     this.scores = Array(playerCount).fill(0);
     this.inputManager = new InputManager(this);
     this.soundManager = new SoundManager();
+    this.soundManager.setEnabled(this.soundEnabled);
 
     this.scoreText = this.add.text(GAME_WIDTH / 2, 20, '', {
       fontSize: '24px',
@@ -144,6 +152,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.powerUpManager = new PowerUpManager(this, this.wallData, this.tanks);
+    this.powerUpManager.setEnabled(this.powerUpsEnabled);
 
     if (this.aiDebugGraphics && typeof this.aiDebugGraphics.destroy === 'function') {
       this.aiDebugGraphics.destroy();
@@ -180,7 +189,8 @@ export class GameScene extends Phaser.Scene {
     this.updateScoreText();
 
     if (this.inputManager.isEscapePressed()) {
-      this.scene.start('MenuScene');
+      this.scene.pause(GameScene.KEY);
+      this.scene.launch(PauseScene.KEY);
       return;
     }
 
@@ -388,6 +398,29 @@ export class GameScene extends Phaser.Scene {
     if (eliminatedThisFrame.size > 0) {
       this.eliminatePlayers([...eliminatedThisFrame]);
     }
+  }
+
+  getPauseStatus(): PauseStatus {
+    return {
+      settings: this.settings,
+      soundEnabled: this.soundEnabled,
+      powerUpsEnabled: this.powerUpsEnabled,
+    };
+  }
+
+  setSoundEnabled(enabled: boolean): void {
+    this.soundEnabled = enabled;
+    this.soundManager.setEnabled(enabled);
+  }
+
+  setPowerUpsEnabled(enabled: boolean): void {
+    this.powerUpsEnabled = enabled;
+    this.powerUpManager.setEnabled(enabled);
+  }
+
+  restartMatch(): void {
+    this.scores.fill(0);
+    this.startRound();
   }
 
   private updateTank(tank: Tank, forward: boolean, backward: boolean, rotateInput: number, dt: number): void {

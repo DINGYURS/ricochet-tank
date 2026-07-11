@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+const mockEscapePressed = vi.hoisted(() => ({ value: false }));
+
 // Mock Phaser before importing GameScene
 vi.mock('phaser', () => {
   class MockScene {
@@ -19,7 +21,14 @@ vi.mock('phaser', () => {
       };
       this.time = { now: 0, addEvent: vi.fn(), delayedCall: vi.fn() };
       this.events = { on: vi.fn(), emit: vi.fn() };
-      this.scene = { start: vi.fn() };
+      this.scene = {
+        start: vi.fn(),
+        pause: vi.fn(),
+        launch: vi.fn(),
+        stop: vi.fn(),
+        resume: vi.fn(),
+        get: vi.fn(),
+      };
     }
   }
 
@@ -51,7 +60,7 @@ vi.mock('../../src/systems/InputManager', () => {
         return { forward: false, backward: false, rotateLeft: false, rotateRight: false, shoot: false, usePowerUp: false };
       }
       isEscapePressed() {
-        return false;
+        return mockEscapePressed.value;
       }
     },
   };
@@ -79,6 +88,9 @@ vi.mock('../../src/utils/math', () => ({
 vi.mock('../../src/systems/SoundManager', () => {
   return {
     SoundManager: class {
+      enabled = true;
+      setEnabled(enabled: boolean) { this.enabled = enabled; }
+      isEnabled() { return this.enabled; }
       shoot() {}
       bounce() {}
       explosion() {}
@@ -162,10 +174,13 @@ vi.mock('../../src/enums/PowerUpType', () => ({
 vi.mock('../../src/systems/PowerUpManager', () => {
   return {
     PowerUpManager: class {
+      enabled = true;
       update() {}
       updatePassiveTimers() {}
       getPowerUps() { return []; }
       clearAll() {}
+      setEnabled(enabled: boolean) { this.enabled = enabled; }
+      isEnabled() { return this.enabled; }
     },
   };
 });
@@ -203,7 +218,15 @@ import { GameScene } from '../../src/scenes/GameScene';
 import { DEFAULT_GAME_SETTINGS, type GameSettings } from '../../src/config';
 import { circleCircleOverlap } from '../../src/systems/Collision';
 
+beforeEach(() => {
+  mockEscapePressed.value = false;
+  vi.mocked(circleCircleOverlap).mockReturnValue(false);
+});
+
 describe('GameScene', () => {
+  it('exposes a stable scene key', () => {
+    expect(GameScene.KEY).toBe('GameScene');
+  });
   it('uses the canonical GameSettings interface', () => {
     const settings: GameSettings = { mode: 'local', localPlayers: 2 };
     expect(settings.mode).toBe('local');
@@ -347,5 +370,51 @@ describe('GameScene', () => {
     expect((scene as any).roundState).toBe('ROUND_OVER');
     expect((scene as any).scores).toEqual([0, 0, 0]);
     expect((scene as any).statusText.setText).toHaveBeenCalledWith('DRAW!');
+  });
+
+  it('opens the pause overlay on Escape instead of returning to the menu', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    mockEscapePressed.value = true;
+
+    scene.update(0, 16);
+
+    expect((scene as any).scene.pause).toHaveBeenCalledWith('GameScene');
+    expect((scene as any).scene.launch).toHaveBeenCalledWith('PauseScene');
+    expect((scene as any).scene.start).not.toHaveBeenCalledWith('MenuScene');
+  });
+
+  it('delegates match-local sound and power-up settings', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+
+    scene.setSoundEnabled(false);
+    scene.setPowerUpsEnabled(false);
+
+    expect(scene.getPauseStatus()).toEqual({
+      settings: { mode: 'local', localPlayers: 2 },
+      soundEnabled: false,
+      powerUpsEnabled: false,
+    });
+    expect((scene as any).soundManager.enabled).toBe(false);
+    expect((scene as any).powerUpManager.enabled).toBe(false);
+  });
+
+  it('restarts the current match with zero scores and preserves match options', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 3 });
+    scene.setSoundEnabled(false);
+    scene.setPowerUpsEnabled(false);
+    (scene as any).scores = [1, 2, 1];
+
+    scene.restartMatch();
+
+    expect((scene as any).scores).toEqual([0, 0, 0]);
+    expect(scene.getPauseStatus()).toEqual({
+      settings: { mode: 'local', localPlayers: 3 },
+      soundEnabled: false,
+      powerUpsEnabled: false,
+    });
+    expect((scene as any).powerUpManager.enabled).toBe(false);
   });
 });
