@@ -51,7 +51,7 @@ const TANK_PIXEL_GRID: number[][] = [
 export const TANK_COLORS: Record<number, { body: number; track: number; turret: number }> = {
   0: { body: 0x4488ff, track: 0x2255aa, turret: 0x3366cc }, // P1 blue
   1: { body: 0xff4444, track: 0xaa2222, turret: 0xcc3333 }, // P2 red
-  2: { body: 0x333333, track: 0x1a1a1a, turret: 0x222222 }, // AI black
+  2: { body: 0x44dd66, track: 0x228844, turret: 0x33aa55 }, // P3 green
 };
 
 export interface TankMovementResult {

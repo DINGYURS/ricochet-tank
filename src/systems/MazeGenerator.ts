@@ -1,7 +1,13 @@
+interface SpawnPoint {
+  x: number;
+  y: number;
+}
+
 interface MazeResult {
   walls: Array<{ x: number; y: number; width: number; height: number; orientation: 'vertical' | 'horizontal' }>;
-  spawn1: { x: number; y: number };
-  spawn2: { x: number; y: number };
+  spawns: SpawnPoint[];
+  spawn1: SpawnPoint;
+  spawn2: SpawnPoint;
 }
 
 export function generateMaze(
@@ -61,6 +67,8 @@ export function generateMaze(
 
   const spawn1 = { x: 0.5 * cellSize, y: 0.5 * cellSize };
   const spawn2 = { x: (cols - 0.5) * cellSize, y: (rows - 0.5) * cellSize };
+  const spawn3 = { x: (cols - 0.5) * cellSize, y: 0.5 * cellSize };
+  const spawns = [spawn1, spawn2, spawn3];
 
   function clearAroundSpawn(sx: number, sy: number) {
     const sc = Math.floor(sx / cellSize);
@@ -78,8 +86,9 @@ export function generateMaze(
       }
     }
   }
-  clearAroundSpawn(spawn1.x, spawn1.y);
-  clearAroundSpawn(spawn2.x, spawn2.y);
+  for (const spawn of spawns) {
+    clearAroundSpawn(spawn.x, spawn.y);
+  }
 
   const walls: MazeResult['walls'] = [];
 
@@ -117,7 +126,7 @@ export function generateMaze(
   walls.push({ x: -wallThickness, y: 0, width: wallThickness, height: rows * cellSize, orientation: 'vertical' });
   walls.push({ x: cols * cellSize, y: 0, width: wallThickness, height: rows * cellSize, orientation: 'vertical' });
 
-  return { walls, spawn1, spawn2 };
+  return { walls, spawns, spawn1, spawn2 };
 }
 
 function shuffleArray<T>(arr: T[]): T[] {

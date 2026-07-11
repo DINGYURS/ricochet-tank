@@ -23,6 +23,14 @@ describe('generateMaze', () => {
     expect(dx + dy).toBeGreaterThan(CELL_SIZE * 3);
   });
 
+  it('returns three distinct spawn points while preserving compatibility fields', () => {
+    const result = generateMaze(MAZE_COLS, MAZE_ROWS, CELL_SIZE, WALL_THICKNESS, 0.2, 2);
+    expect(result.spawns).toHaveLength(3);
+    expect(result.spawns[0]).toEqual(result.spawn1);
+    expect(result.spawns[1]).toEqual(result.spawn2);
+    expect(new Set(result.spawns.map(point => `${point.x},${point.y}`)).size).toBe(3);
+  });
+
   it('uses random choices to produce different wall layouts', () => {
     const random = vi.spyOn(Math, 'random');
     random.mockReturnValue(0);
