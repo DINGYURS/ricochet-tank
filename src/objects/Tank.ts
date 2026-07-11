@@ -187,6 +187,12 @@ export class Tank {
     this.draw();
   }
 
+  setAlive(alive: boolean): void {
+    this.alive = alive;
+    this.bodyGraphics.setVisible(alive);
+    this.stateText?.setVisible(alive);
+  }
+
   getBarrelTip(): { x: number; y: number } {
     // Barrel extends to col 15 in the rotated grid (rows 7-8)
     // Center of grid is at col 7.5, so offset = (15 - 7.5) * 2px = 15

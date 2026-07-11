@@ -12,7 +12,7 @@ import {
   DEBUG_AI_PATHS,
   type GameSettings,
 } from '../config';
-import { InputManager } from '../systems/InputManager';
+import { InputManager, type PlayerInput } from '../systems/InputManager';
 import { generateMaze } from '../systems/MazeGenerator';
 import { separateCircleFromRect, circleCircleOverlap, circleRectOverlap } from '../systems/Collision';
 import { reflect } from '../utils/math';
@@ -26,6 +26,7 @@ import { getEffectiveCooldown, createBulletsForShot, fireLaser, fireRocket, plac
 import { Rocket } from '../objects/Rocket';
 import { Mine } from '../objects/Mine';
 import { AIController } from '../systems/AIController';
+import { evaluateRound } from '../systems/MatchRules';
 
 enum RoundState {
   GENERATING = 'GENERATING',
@@ -37,8 +38,7 @@ enum RoundState {
 
 export class GameScene extends Phaser.Scene {
   private roundState: RoundState = RoundState.GENERATING;
-  private scoreP1: number = 0;
-  private scoreP2: number = 0;
+  private scores: number[] = [];
   private inputManager!: InputManager;
   private walls: Wall[] = [];
   private wallData: Array<{ x: number; y: number; width: number; height: number; orientation: 'vertical' | 'horizontal' }> = [];
@@ -46,8 +46,7 @@ export class GameScene extends Phaser.Scene {
   private bullets: Bullet[] = [];
   private scoreText!: Phaser.GameObjects.Text;
   private statusText!: Phaser.GameObjects.Text;
-  private ammoBarP1!: Phaser.GameObjects.Graphics;
-  private ammoBarP2!: Phaser.GameObjects.Graphics;
+  private powerUpHudGraphics: Phaser.GameObjects.Graphics[] = [];
   private soundManager!: SoundManager;
   private powerUpManager!: PowerUpManager;
   private rockets: Rocket[] = [];
@@ -67,8 +66,8 @@ export class GameScene extends Phaser.Scene {
   create(settings?: GameSettings): void {
     this.settings = settings ?? { ...DEFAULT_GAME_SETTINGS };
     this.aiController = null;
-    this.scoreP1 = 0;
-    this.scoreP2 = 0;
+    const playerCount = this.settings.mode === 'local' ? this.settings.localPlayers : 2;
+    this.scores = Array(playerCount).fill(0);
     this.inputManager = new InputManager(this);
     this.soundManager = new SoundManager();
 
@@ -84,8 +83,10 @@ export class GameScene extends Phaser.Scene {
       fontFamily: 'monospace',
     }).setOrigin(0.5).setDepth(100);
 
-    this.ammoBarP1 = this.add.graphics().setDepth(100);
-    this.ammoBarP2 = this.add.graphics().setDepth(100);
+    this.powerUpHudGraphics = Array.from(
+      { length: playerCount },
+      () => this.add.graphics().setDepth(100),
+    );
 
     this.collectionText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 50, '', {
       fontSize: '20px',
@@ -135,8 +136,12 @@ export class GameScene extends Phaser.Scene {
       this.walls.push(new Wall(this, wd.x, wd.y, wd.width, wd.height, wd.orientation));
     }
 
-    this.tanks.push(new Tank(this, maze.spawn1.x, maze.spawn1.y, 0, 0));
-    this.tanks.push(new Tank(this, maze.spawn2.x, maze.spawn2.y, Math.PI, 1));
+    const playerCount = this.settings.mode === 'local' ? this.settings.localPlayers : 2;
+    const rotations = [0, Math.PI, Math.PI];
+    for (let playerId = 0; playerId < playerCount; playerId++) {
+      const spawn = maze.spawns[playerId];
+      this.tanks.push(new Tank(this, spawn.x, spawn.y, rotations[playerId], playerId));
+    }
 
     this.powerUpManager = new PowerUpManager(this, this.wallData, this.tanks);
 
@@ -146,7 +151,7 @@ export class GameScene extends Phaser.Scene {
     this.aiDebugGraphics = null;
 
     if (this.settings.mode === 'ai') {
-      this.aiController = new AIController(this.tanks[1], this.tanks[0], this.settings.aiDifficulty ?? 'medium');
+      this.aiController = new AIController(this.tanks[1], this.tanks[0], this.settings.aiDifficulty);
       if (DEBUG_AI_PATHS) {
         this.aiDebugGraphics = this.add.graphics().setDepth(99);
       }
@@ -186,9 +191,9 @@ export class GameScene extends Phaser.Scene {
     const dt = Math.min(delta / 1000, MAX_DT);
     const currentTimeMs = this.time.now;
 
-    const p1 = this.inputManager.getPlayer1Input();
+    const inputs: PlayerInput[] = [this.inputManager.getPlayer1Input()];
 
-    let p2;
+    let player2Input: PlayerInput;
     if (this.aiController) {
       this.aiController.setWorldState(
         this.bullets.map(b => b.state),
@@ -197,23 +202,27 @@ export class GameScene extends Phaser.Scene {
         GAME_WIDTH,
         GAME_HEIGHT,
       );
-      p2 = this.aiController.getInput(delta, this.time.now);
+      player2Input = this.aiController.getInput(delta, this.time.now);
       // Draw AI debug path
       if (DEBUG_AI_PATHS) {
         this.drawAIDebugPath();
       }
     } else {
-      p2 = this.inputManager.getPlayer2Input();
+      player2Input = this.inputManager.getPlayer2Input();
+    }
+    inputs.push(player2Input);
+    if (this.tanks.length === 3) {
+      inputs.push(this.inputManager.getPlayer3Input(this.tanks[2]));
     }
 
-    const rotateP1 = (p1.rotateLeft ? -1 : 0) + (p1.rotateRight ? 1 : 0);
-    const rotateP2 = (p2.rotateLeft ? -1 : 0) + (p2.rotateRight ? 1 : 0);
-
-    this.updateTank(this.tanks[0], p1.forward, p1.backward, rotateP1, dt);
-    this.updateTank(this.tanks[1], p2.forward, p2.backward, rotateP2, dt);
-
-    this.handleShoot(this.tanks[0], p1.shoot, currentTimeMs);
-    this.handleShoot(this.tanks[1], p2.shoot, currentTimeMs);
+    for (let playerId = 0; playerId < this.tanks.length; playerId++) {
+      const tank = this.tanks[playerId];
+      const input = inputs[playerId];
+      if (!tank.alive) continue;
+      const rotateInput = (input.rotateLeft ? -1 : 0) + (input.rotateRight ? 1 : 0);
+      this.updateTank(tank, input.forward, input.backward, rotateInput, dt);
+      this.handleShoot(tank, input.shoot, currentTimeMs);
+    }
 
     // Power-up manager
     this.powerUpManager.update(dt, this.time.now);
@@ -239,7 +248,7 @@ export class GameScene extends Phaser.Scene {
               target.passiveTimers.delete(PowerUpType.Shield);
               this.soundManager.shieldBreak();
             } else {
-              this.resolveRound([this.laserHitPlayerId]);
+              this.eliminatePlayers([this.laserHitPlayerId]);
             }
           }
           this.laserHitPlayerId = null;
@@ -277,7 +286,7 @@ export class GameScene extends Phaser.Scene {
             tank.passiveTimers.delete(PowerUpType.Shield);
             this.soundManager.shieldBreak();
           } else {
-            this.resolveRound([tank.playerId]);
+            this.eliminatePlayers([tank.playerId]);
           }
           rocket.destroy();
           return false;
@@ -301,7 +310,7 @@ export class GameScene extends Phaser.Scene {
             this.soundManager.shieldBreak();
           } else {
             this.soundManager.mineExplode();
-            this.resolveRound([tank.playerId]);
+            this.eliminatePlayers([tank.playerId]);
           }
           mine.destroy();
         }
@@ -310,8 +319,11 @@ export class GameScene extends Phaser.Scene {
     this.mines = this.mines.filter(m => m.active);
 
     // Handle use-power-up input
-    this.handleUsePowerUp(this.tanks[0], p1.usePowerUp);
-    this.handleUsePowerUp(this.tanks[1], p2.usePowerUp);
+    for (let playerId = 0; playerId < this.tanks.length; playerId++) {
+      if (this.tanks[playerId].alive) {
+        this.handleUsePowerUp(this.tanks[playerId], inputs[playerId].usePowerUp);
+      }
+    }
 
     // Tick bullet wall cooldowns
     for (const bullet of this.bullets) {
@@ -369,7 +381,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     if (deadPlayers.length > 0) {
-      this.resolveRound(deadPlayers);
+      this.eliminatePlayers(deadPlayers);
     }
   }
 
@@ -468,7 +480,17 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private resolveRound(deadPlayers: number[]): void {
+  private eliminatePlayers(playerIds: number[]): void {
+    if (this.roundState !== RoundState.PLAYING) return;
+
+    for (const playerId of new Set(playerIds)) {
+      const tank = this.tanks.find(candidate => candidate.playerId === playerId);
+      if (tank?.alive) tank.setAlive(false);
+    }
+
+    const result = evaluateRound(this.tanks.filter(tank => tank.alive).map(tank => tank.playerId));
+    if (!result.roundOver) return;
+
     this.roundState = RoundState.ROUND_OVER;
     this.powerUpManager.clearAll();
     for (const rocket of this.rockets) rocket.destroy();
@@ -476,19 +498,14 @@ export class GameScene extends Phaser.Scene {
     for (const mine of this.mines) mine.destroy();
     this.mines = [];
     if (this.laserGraphics) { this.laserGraphics.destroy(); this.laserGraphics = null; }
-    const uniqueDead = [...new Set(deadPlayers)];
-
-    if (uniqueDead.length === 2) {
+    if (result.draw) {
       this.statusText.setText('DRAW!');
-    } else if (uniqueDead.includes(0)) {
-      this.scoreP2++;
-      this.statusText.setText(`${this.getOpponentLabel()} Wins!`);
-    } else {
-      this.scoreP1++;
-      this.statusText.setText('P1 Wins!');
+    } else if (result.winnerId !== null) {
+      this.scores[result.winnerId]++;
+      this.statusText.setText(`${this.getPlayerLabel(result.winnerId)} Wins!`);
     }
 
-    if (uniqueDead.length !== 2) {
+    if (!result.draw) {
       this.soundManager.explosion();
     }
 
@@ -496,9 +513,10 @@ export class GameScene extends Phaser.Scene {
     this.soundManager.victory();
 
     this.time.delayedCall(ROUND_END_DELAY * 1000, () => {
-      if (this.scoreP1 >= SCORE_TO_WIN || this.scoreP2 >= SCORE_TO_WIN) {
+      const matchWinnerId = this.scores.findIndex(score => score >= SCORE_TO_WIN);
+      if (matchWinnerId !== -1) {
         this.roundState = RoundState.MATCH_OVER;
-        const winner = this.scoreP1 >= SCORE_TO_WIN ? 'Player 1' : this.getOpponentLabel();
+        const winner = this.getPlayerLabel(matchWinnerId, true);
         this.statusText.setText(`${winner} Wins the Match!\n\nPress SPACE for Menu`);
         this.input.keyboard!.once('keydown-SPACE', () => {
           this.scene.start('MenuScene');
@@ -509,16 +527,18 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private getOpponentLabel(): string {
-    if (this.settings.mode === 'ai') {
-      const diff = this.settings.aiDifficulty ?? 'medium';
+  private getPlayerLabel(playerId: number, longForm = false): string {
+    if (this.settings.mode === 'ai' && playerId === 1) {
+      const diff = this.settings.aiDifficulty;
       return `AI (${diff.charAt(0).toUpperCase() + diff.slice(1)})`;
     }
-    return 'P2';
+    return longForm ? `Player ${playerId + 1}` : `P${playerId + 1}`;
   }
 
   private updateScoreText(): void {
-    this.scoreText.setText(`P1: ${this.scoreP1}  |  ${this.getOpponentLabel()}: ${this.scoreP2}`);
+    this.scoreText.setText(
+      this.scores.map((score, playerId) => `${this.getPlayerLabel(playerId)}: ${score}`).join('  |  '),
+    );
   }
 
   private handleUsePowerUp(tank: Tank, usePressed: boolean): void {
@@ -568,52 +588,29 @@ export class GameScene extends Phaser.Scene {
   }
 
   private drawPowerUpHUD(): void {
-    this.ammoBarP1.clear();
-    this.ammoBarP2.clear();
+    for (const graphics of this.powerUpHudGraphics) graphics.clear();
 
-    // P1 HUD - left side
-    if (this.tanks[0] && this.tanks[0].heldPowerUp) {
-      const tank = this.tanks[0];
-      const visual = POWERUP_VISUALS[tank.heldPowerUp!];
-      const x = 10;
-      this.ammoBarP1.fillStyle(0x000000, 0.6);
-      this.ammoBarP1.fillRect(x, 65, 24, 24);
-      this.ammoBarP1.fillStyle(visual.color, 1);
-      this.ammoBarP1.fillCircle(x + 12, 77, 8);
-      this.ammoBarP1.lineStyle(1, 0xffffff, 0.5);
-      this.ammoBarP1.strokeRect(x, 65, 24, 24);
+    for (let playerId = 0; playerId < this.tanks.length; playerId++) {
+      const tank = this.tanks[playerId];
+      if (!tank.heldPowerUp) continue;
 
-      if (visual.passive && tank.passiveTimers.has(tank.heldPowerUp!)) {
-        const remaining = tank.passiveTimers.get(tank.heldPowerUp!)!;
-        const maxDuration = this.getPassiveMaxDuration(tank.heldPowerUp!);
-        const ratio = remaining / maxDuration;
-        this.ammoBarP1.fillStyle(0x333333, 1);
-        this.ammoBarP1.fillRect(x, 90, 24, 4);
-        this.ammoBarP1.fillStyle(visual.color, 1);
-        this.ammoBarP1.fillRect(x, 90, 24 * ratio, 4);
-      }
-    }
+      const graphics = this.powerUpHudGraphics[playerId];
+      const visual = POWERUP_VISUALS[tank.heldPowerUp];
+      const x = playerId === 0 ? 10 : playerId === 1 ? GAME_WIDTH - 34 : GAME_WIDTH / 2 - 12;
+      graphics.fillStyle(0x000000, 0.6);
+      graphics.fillRect(x, 65, 24, 24);
+      graphics.fillStyle(visual.color, 1);
+      graphics.fillCircle(x + 12, 77, 8);
+      graphics.lineStyle(1, 0xffffff, 0.5);
+      graphics.strokeRect(x, 65, 24, 24);
 
-    // P2 HUD - right side
-    if (this.tanks[1] && this.tanks[1].heldPowerUp) {
-      const tank = this.tanks[1];
-      const visual = POWERUP_VISUALS[tank.heldPowerUp!];
-      const x = GAME_WIDTH - 34;
-      this.ammoBarP2.fillStyle(0x000000, 0.6);
-      this.ammoBarP2.fillRect(x, 65, 24, 24);
-      this.ammoBarP2.fillStyle(visual.color, 1);
-      this.ammoBarP2.fillCircle(x + 12, 77, 8);
-      this.ammoBarP2.lineStyle(1, 0xffffff, 0.5);
-      this.ammoBarP2.strokeRect(x, 65, 24, 24);
-
-      if (visual.passive && tank.passiveTimers.has(tank.heldPowerUp!)) {
-        const remaining = tank.passiveTimers.get(tank.heldPowerUp!)!;
-        const maxDuration = this.getPassiveMaxDuration(tank.heldPowerUp!);
-        const ratio = remaining / maxDuration;
-        this.ammoBarP2.fillStyle(0x333333, 1);
-        this.ammoBarP2.fillRect(x, 90, 24, 4);
-        this.ammoBarP2.fillStyle(visual.color, 1);
-        this.ammoBarP2.fillRect(x, 90, 24 * ratio, 4);
+      if (visual.passive && tank.passiveTimers.has(tank.heldPowerUp)) {
+        const remaining = tank.passiveTimers.get(tank.heldPowerUp)!;
+        const ratio = remaining / this.getPassiveMaxDuration(tank.heldPowerUp);
+        graphics.fillStyle(0x333333, 1);
+        graphics.fillRect(x, 90, 24, 4);
+        graphics.fillStyle(visual.color, 1);
+        graphics.fillRect(x, 90, 24 * ratio, 4);
       }
     }
   }

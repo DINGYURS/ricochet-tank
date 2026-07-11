@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeTankMovement, TANK_COLORS } from '../../src/objects/Tank';
+import { computeTankMovement, TANK_COLORS, Tank } from '../../src/objects/Tank';
 import { AMMO_MAX, AMMO_REFILL_INTERVAL } from '../../src/config';
 
 describe('computeTankMovement', () => {
@@ -91,5 +91,30 @@ describe('Tank color parameter', () => {
   it('P3 color is visually distinct from P1 and P2', () => {
     expect(TANK_COLORS[2]).not.toEqual(TANK_COLORS[0]);
     expect(TANK_COLORS[2]).not.toEqual(TANK_COLORS[1]);
+  });
+});
+
+describe('Tank.setAlive', () => {
+  it('updates alive state and graphics visibility', () => {
+    const graphics = {
+      clear: () => graphics,
+      save: () => graphics,
+      translateCanvas: () => graphics,
+      rotateCanvas: () => graphics,
+      fillStyle: () => graphics,
+      fillRect: () => graphics,
+      restore: () => graphics,
+      setVisible: (visible: boolean) => {
+        (graphics as any).visible = visible;
+        return graphics;
+      },
+    };
+    const scene = { add: { graphics: () => graphics } } as any;
+    const tank = new Tank(scene, 10, 20, 0, 0);
+
+    tank.setAlive(false);
+
+    expect(tank.alive).toBe(false);
+    expect((graphics as any).visible).toBe(false);
   });
 });

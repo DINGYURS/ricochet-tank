@@ -47,6 +47,9 @@ vi.mock('../../src/systems/InputManager', () => {
       getPlayer2Input() {
         return { forward: false, backward: false, rotateLeft: false, rotateRight: false, shoot: false, usePowerUp: false };
       }
+      getPlayer3Input() {
+        return { forward: false, backward: false, rotateLeft: false, rotateRight: false, shoot: false, usePowerUp: false };
+      }
       isEscapePressed() {
         return false;
       }
@@ -57,6 +60,7 @@ vi.mock('../../src/systems/InputManager', () => {
 vi.mock('../../src/systems/MazeGenerator', () => ({
   generateMaze: vi.fn(() => ({
     walls: [],
+    spawns: [{ x: 100, y: 100 }, { x: 700, y: 500 }, { x: 700, y: 100 }],
     spawn1: { x: 100, y: 100 },
     spawn2: { x: 700, y: 500 },
   })),
@@ -122,6 +126,7 @@ vi.mock('../../src/objects/Tank', () => {
       }
       destroy() {}
       setPosition() {}
+      setAlive(alive: boolean) { this.alive = alive; }
       clearPowerUps() {}
     },
     computeTankMovement: vi.fn(),
@@ -273,5 +278,51 @@ describe('GameScene', () => {
     const scene = new GameScene();
     (scene as any).create({ mode: 'ai', aiDifficulty: 'easy' });
     expect((scene as any).aiDebugGraphics).toBeNull();
+  });
+
+  it('creates three tanks, scores, and HUD entries for three-player local mode', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 3 });
+
+    expect((scene as any).tanks).toHaveLength(3);
+    expect((scene as any).scores).toEqual([0, 0, 0]);
+    expect((scene as any).powerUpHudGraphics).toHaveLength(3);
+  });
+
+  it('continues a three-player round after the first elimination', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 3 });
+    (scene as any).roundState = 'PLAYING';
+
+    (scene as any).eliminatePlayers([0]);
+
+    expect((scene as any).tanks[0].alive).toBe(false);
+    expect((scene as any).roundState).toBe('PLAYING');
+    expect((scene as any).scores).toEqual([0, 0, 0]);
+  });
+
+  it('awards the round to the last surviving player', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 3 });
+    (scene as any).roundState = 'PLAYING';
+
+    (scene as any).eliminatePlayers([0]);
+    (scene as any).eliminatePlayers([1]);
+
+    expect((scene as any).roundState).toBe('ROUND_OVER');
+    expect((scene as any).scores).toEqual([0, 0, 1]);
+    expect((scene as any).statusText.setText).toHaveBeenCalledWith('P3 Wins!');
+  });
+
+  it('records an all-dead round as a draw', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 3 });
+    (scene as any).roundState = 'PLAYING';
+
+    (scene as any).eliminatePlayers([0, 1, 2]);
+
+    expect((scene as any).roundState).toBe('ROUND_OVER');
+    expect((scene as any).scores).toEqual([0, 0, 0]);
+    expect((scene as any).statusText.setText).toHaveBeenCalledWith('DRAW!');
   });
 });
