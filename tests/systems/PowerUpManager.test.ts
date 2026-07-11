@@ -3,8 +3,8 @@ import { PowerUpType, ALL_POWERUP_TYPES } from '../../src/enums/PowerUpType';
 import { PowerUpManager } from '../../src/systems/PowerUpManager';
 
 describe('PowerUpManager logic', () => {
-  it('ALL_POWERUP_TYPES contains 7 types', () => {
-    expect(ALL_POWERUP_TYPES).toHaveLength(7);
+  it('ALL_POWERUP_TYPES contains 10 types', () => {
+    expect(ALL_POWERUP_TYPES).toHaveLength(10);
   });
 
   it('random type selection returns a valid type', () => {

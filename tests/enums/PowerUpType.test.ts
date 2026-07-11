@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { PowerUpType, POWERUP_VISUALS } from '../../src/enums/PowerUpType';
 
 describe('PowerUpType', () => {
-  it('has 7 power-up types', () => {
+  it('has 10 power-up types', () => {
     const types = Object.values(PowerUpType);
-    expect(types).toHaveLength(7);
+    expect(types).toHaveLength(10);
   });
 
   it('has visual config for every type', () => {
@@ -24,5 +24,8 @@ describe('PowerUpType', () => {
     expect(POWERUP_VISUALS[PowerUpType.Rocket].passive).toBe(false);
     expect(POWERUP_VISUALS[PowerUpType.Mine].passive).toBe(false);
     expect(POWERUP_VISUALS[PowerUpType.Shotgun].passive).toBe(false);
+    expect(POWERUP_VISUALS[PowerUpType.DeathRay].passive).toBe(false);
+    expect(POWERUP_VISUALS[PowerUpType.RCMissile].passive).toBe(false);
+    expect(POWERUP_VISUALS[PowerUpType.FragBomb].passive).toBe(false);
   });
 });

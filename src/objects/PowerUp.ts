@@ -79,6 +79,30 @@ export class PowerUp {
           this.graphics.lineBetween(0, 0, Math.cos(angle - Math.PI / 2) * 7, Math.sin(angle - Math.PI / 2) * 7);
         }
         break;
+      case PowerUpType.DeathRay:
+        // Thick beam with a charging core
+        this.graphics.fillRect(-7, -2, 14, 4);
+        this.graphics.fillCircle(-5, 0, 4);
+        break;
+      case PowerUpType.RCMissile:
+        // Missile body and steering fins
+        this.graphics.fillTriangle(6, 0, -4, -4, -4, 4);
+        this.graphics.lineBetween(-4, -4, -7, -7);
+        this.graphics.lineBetween(-4, 4, -7, 7);
+        break;
+      case PowerUpType.FragBomb:
+        // Bomb core with fragment rays
+        this.graphics.fillCircle(0, 0, 4);
+        for (let i = 0; i < 4; i++) {
+          const angle = i * Math.PI / 2;
+          this.graphics.lineBetween(
+            Math.cos(angle) * 5,
+            Math.sin(angle) * 5,
+            Math.cos(angle) * 8,
+            Math.sin(angle) * 8,
+          );
+        }
+        break;
     }
 
     // Border
