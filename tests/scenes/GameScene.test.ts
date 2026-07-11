@@ -1,6 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockEscapePressed = vi.hoisted(() => ({ value: false }));
+const mockPlayer1Input = vi.hoisted(() => ({
+  forward: false,
+  backward: false,
+  rotateLeft: false,
+  rotateRight: false,
+  shoot: false,
+  usePowerUp: false,
+}));
 
 // Mock Phaser before importing GameScene
 vi.mock('phaser', () => {
@@ -55,7 +63,7 @@ vi.mock('../../src/systems/InputManager', () => {
   return {
     InputManager: class {
       getPlayer1Input() {
-        return { forward: false, backward: false, rotateLeft: false, rotateRight: false, shoot: false, usePowerUp: false };
+        return { ...mockPlayer1Input };
       }
       getPlayer2Input() {
         return { forward: false, backward: false, rotateLeft: false, rotateRight: false, shoot: false, usePowerUp: false };
@@ -224,6 +232,14 @@ import { circleCircleOverlap } from '../../src/systems/Collision';
 
 beforeEach(() => {
   mockEscapePressed.value = false;
+  Object.assign(mockPlayer1Input, {
+    forward: false,
+    backward: false,
+    rotateLeft: false,
+    rotateRight: false,
+    shoot: false,
+    usePowerUp: false,
+  });
   vi.mocked(circleCircleOverlap).mockReturnValue(false);
 });
 
@@ -498,5 +514,24 @@ describe('GameScene', () => {
     (scene as any).handleWeaponInput(tank, { shoot: true, usePowerUp: true }, 100);
 
     expect(active).toHaveBeenCalledOnce();
+  });
+
+  it('resolves primary fire before collecting a power-up in the same update', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    (scene as any).roundState = 'PLAYING';
+    mockPlayer1Input.shoot = true;
+    const tank = (scene as any).tanks[0];
+    vi.spyOn((scene as any).powerUpManager, 'update').mockImplementation(() => {
+      tank.heldPowerUp = 'Laser';
+    });
+    const standard = vi.spyOn(scene as any, 'handleShoot');
+    const active = vi.spyOn(scene as any, 'handleUsePowerUp');
+
+    scene.update(0, 16);
+
+    expect(standard).toHaveBeenCalledOnce();
+    expect(active).not.toHaveBeenCalled();
+    expect(tank.heldPowerUp).toBe('Laser');
   });
 });

@@ -28,7 +28,7 @@ import { Mine } from '../objects/Mine';
 import { AIController } from '../systems/AIController';
 import { evaluateRound } from '../systems/MatchRules';
 import { PauseScene, type PauseStatus } from './PauseScene';
-import { resolveWeaponAction } from '../systems/WeaponInputResolver';
+import { resolveWeaponAction, type WeaponAction } from '../systems/WeaponInputResolver';
 
 enum RoundState {
   GENERATING = 'GENERATING',
@@ -242,6 +242,21 @@ export class GameScene extends Phaser.Scene {
       this.updateTank(tank, input.forward, input.backward, rotateInput, dt);
     }
 
+    const weaponActions: WeaponAction[] = this.tanks.map((tank, playerId) => {
+      if (!tank.alive) return 'none';
+      const input = inputs[playerId];
+      return resolveWeaponAction({
+        shoot: input.shoot,
+        usePowerUp: input.usePowerUp,
+        heldPowerUp: tank.heldPowerUp,
+      });
+    });
+    for (let playerId = 0; playerId < this.tanks.length; playerId++) {
+      if (weaponActions[playerId] === 'standard') {
+        this.executeWeaponAction(this.tanks[playerId], 'standard', currentTimeMs);
+      }
+    }
+
     // Power-up manager
     this.powerUpManager.update(dt, this.time.now);
 
@@ -336,10 +351,10 @@ export class GameScene extends Phaser.Scene {
     }
     this.mines = this.mines.filter(m => m.active);
 
-    // Resolve primary and compatibility inputs to exactly one weapon action.
+    // Active weapons keep their previous lifecycle position after projectile updates.
     for (let playerId = 0; playerId < this.tanks.length; playerId++) {
-      if (this.tanks[playerId].alive) {
-        this.handleWeaponInput(this.tanks[playerId], inputs[playerId], currentTimeMs);
+      if (this.tanks[playerId].alive && weaponActions[playerId] === 'active') {
+        this.executeWeaponAction(this.tanks[playerId], 'active', currentTimeMs);
       }
     }
 
@@ -505,6 +520,10 @@ export class GameScene extends Phaser.Scene {
       usePowerUp: input.usePowerUp,
       heldPowerUp: tank.heldPowerUp,
     });
+    this.executeWeaponAction(tank, action, currentTimeMs);
+  }
+
+  private executeWeaponAction(tank: Tank, action: WeaponAction, currentTimeMs: number): void {
     if (action === 'active') {
       this.handleUsePowerUp(tank, true);
     } else if (action === 'standard') {
