@@ -1,5 +1,14 @@
 export class SoundManager {
   private ctx: AudioContext | null = null;
+  private enabled = true;
+
+  setEnabled(enabled: boolean): void {
+    this.enabled = enabled;
+  }
+
+  isEnabled(): boolean {
+    return this.enabled;
+  }
 
   private getContext(): AudioContext {
     if (!this.ctx) {
@@ -12,6 +21,7 @@ export class SoundManager {
   }
 
   shoot(): void {
+    if (!this.enabled) return;
     const ctx = this.getContext();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -27,6 +37,7 @@ export class SoundManager {
   }
 
   bounce(): void {
+    if (!this.enabled) return;
     const ctx = this.getContext();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -41,6 +52,7 @@ export class SoundManager {
   }
 
   explosion(): void {
+    if (!this.enabled) return;
     const ctx = this.getContext();
     const bufferSize = ctx.sampleRate * 0.3;
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
@@ -59,6 +71,7 @@ export class SoundManager {
   }
 
   countdownTick(): void {
+    if (!this.enabled) return;
     const ctx = this.getContext();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -74,6 +87,7 @@ export class SoundManager {
   }
 
   victory(): void {
+    if (!this.enabled) return;
     const ctx = this.getContext();
     const notes = [523.25, 659.25, 783.99]; // C5, E5, G5
     notes.forEach((freq, i) => {
@@ -91,6 +105,7 @@ export class SoundManager {
   }
 
   powerUpPickup(): void {
+    if (!this.enabled) return;
     const ctx = this.getContext();
     const notes = [523.25, 659.25, 783.99]; // C5, E5, G5
     notes.forEach((freq, i) => {
@@ -108,6 +123,7 @@ export class SoundManager {
   }
 
   shieldBreak(): void {
+    if (!this.enabled) return;
     const ctx = this.getContext();
     const bufferSize = ctx.sampleRate * 0.15;
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
@@ -126,6 +142,7 @@ export class SoundManager {
   }
 
   laserFire(): void {
+    if (!this.enabled) return;
     const ctx = this.getContext();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -140,6 +157,7 @@ export class SoundManager {
   }
 
   rocketFire(): void {
+    if (!this.enabled) return;
     const ctx = this.getContext();
     const bufferSize = ctx.sampleRate * 0.3;
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
@@ -163,6 +181,7 @@ export class SoundManager {
   }
 
   minePlace(): void {
+    if (!this.enabled) return;
     const ctx = this.getContext();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -177,6 +196,7 @@ export class SoundManager {
   }
 
   mineExplode(): void {
+    if (!this.enabled) return;
     const ctx = this.getContext();
     const bufferSize = ctx.sampleRate * 0.5;
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
@@ -195,6 +215,7 @@ export class SoundManager {
   }
 
   shotgunFire(): void {
+    if (!this.enabled) return;
     const ctx = this.getContext();
     for (let i = 0; i < 3; i++) {
       const osc = ctx.createOscillator();

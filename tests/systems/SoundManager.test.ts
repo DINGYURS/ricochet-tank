@@ -49,6 +49,18 @@ describe('SoundManager', () => {
     expect(mockCtx.createOscillator).toHaveBeenCalled();
   });
 
+  it('does not allocate audio nodes while disabled and resumes after re-enabling', () => {
+    manager.setEnabled(false);
+    manager.shoot();
+    expect(mockCtx.createOscillator).not.toHaveBeenCalled();
+    expect(manager.isEnabled()).toBe(false);
+
+    manager.setEnabled(true);
+    manager.shoot();
+    expect(mockCtx.createOscillator).toHaveBeenCalledOnce();
+    expect(manager.isEnabled()).toBe(true);
+  });
+
   it('creates buffer source on explosion', () => {
     manager.explosion();
     expect(mockCtx.createBufferSource).toHaveBeenCalled();

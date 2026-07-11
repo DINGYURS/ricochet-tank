@@ -16,6 +16,7 @@ export class PowerUpManager {
   private spawnTimer: number;
   private wallData: Array<{ x: number; y: number; width: number; height: number }>;
   private tanks: Tank[];
+  private enabled = true;
 
   constructor(scene: Phaser.Scene, wallData: PowerUpManager['wallData'], tanks: Tank[]) {
     this.scene = scene;
@@ -29,6 +30,7 @@ export class PowerUpManager {
   }
 
   update(dt: number, time: number): void {
+    if (!this.enabled) return;
     // Spawn timer
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0 && this.powerUps.length < POWERUP_MAX_ON_MAP) {
@@ -198,5 +200,15 @@ export class PowerUpManager {
       tank.clearPowerUps();
     }
     this.spawnTimer = this.randomInterval();
+  }
+
+  setEnabled(enabled: boolean): void {
+    if (this.enabled === enabled) return;
+    this.enabled = enabled;
+    if (!enabled) this.clearAll();
+  }
+
+  isEnabled(): boolean {
+    return this.enabled;
   }
 }
