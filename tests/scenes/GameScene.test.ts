@@ -13,14 +13,18 @@ vi.mock('phaser', () => {
     config: any;
     constructor(config?: any) {
       this.config = config;
-      this.input = { keyboard: { once: vi.fn(), addKey: vi.fn(() => ({ isDown: false })), addCapture: vi.fn() } };
+      this.input = { keyboard: { once: vi.fn(), off: vi.fn(), addKey: vi.fn(() => ({ isDown: false })), addCapture: vi.fn() } };
       this.add = {
         text: vi.fn(() => ({ setOrigin: vi.fn().mockReturnThis(), setDepth: vi.fn().mockReturnThis(), setAlpha: vi.fn().mockReturnThis(), setText: vi.fn(), setColor: vi.fn() })),
         graphics: vi.fn(() => ({ setDepth: vi.fn().mockReturnThis(), clear: vi.fn(), fillStyle: vi.fn(), fillRect: vi.fn(), fillCircle: vi.fn(), lineStyle: vi.fn(), strokeRect: vi.fn() })),
         circle: vi.fn(() => ({ setPosition: vi.fn(), destroy: vi.fn() })),
       };
-      this.time = { now: 0, addEvent: vi.fn(), delayedCall: vi.fn() };
-      this.events = { on: vi.fn(), emit: vi.fn() };
+      this.time = {
+        now: 0,
+        addEvent: vi.fn((config: any) => ({ config, remove: vi.fn() })),
+        delayedCall: vi.fn((_delay: number, callback: () => void) => ({ callback, remove: vi.fn() })),
+      };
+      this.events = { on: vi.fn(), once: vi.fn(), emit: vi.fn() };
       this.scene = {
         start: vi.fn(),
         pause: vi.fn(),
@@ -416,5 +420,44 @@ describe('GameScene', () => {
       powerUpsEnabled: false,
     });
     expect((scene as any).powerUpManager.enabled).toBe(false);
+  });
+
+  it('cancels the previous countdown when restarting during READY', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const oldCountdown = (scene as any).countdownEvent;
+
+    scene.restartMatch();
+
+    expect(oldCountdown.remove).toHaveBeenCalledWith(false);
+    expect((scene as any).countdownEvent).not.toBe(oldCountdown);
+  });
+
+  it('cancels delayed round resolution when restarting from ROUND_OVER', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    (scene as any).roundState = 'PLAYING';
+    (scene as any).eliminatePlayers([1]);
+    const oldRoundEnd = (scene as any).roundEndEvent;
+
+    scene.restartMatch();
+
+    expect(oldRoundEnd.remove).toHaveBeenCalledWith(false);
+    expect((scene as any).scores).toEqual([0, 0]);
+  });
+
+  it('removes the match-over Space listener when restarting', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    (scene as any).scores = [2, 0];
+    (scene as any).roundState = 'PLAYING';
+    (scene as any).eliminatePlayers([1]);
+    (scene as any).roundEndEvent.callback();
+    const oldHandler = (scene as any).matchOverSpaceHandler;
+
+    scene.restartMatch();
+
+    expect((scene as any).input.keyboard.off).toHaveBeenCalledWith('keydown-SPACE', oldHandler);
+    expect((scene as any).matchOverSpaceHandler).toBeNull();
   });
 });

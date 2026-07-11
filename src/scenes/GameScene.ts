@@ -63,12 +63,17 @@ export class GameScene extends Phaser.Scene {
   private aiDebugGraphics: Phaser.GameObjects.Graphics | null = null;
   private soundEnabled = true;
   private powerUpsEnabled = true;
+  private countdownEvent: Phaser.Time.TimerEvent | null = null;
+  private roundEndEvent: Phaser.Time.TimerEvent | null = null;
+  private matchOverSpaceHandler: (() => void) | null = null;
 
   constructor() {
     super({ key: GameScene.KEY });
   }
 
   create(settings?: GameSettings): void {
+    this.clearAsyncTasks();
+    this.events.once('shutdown', this.clearAsyncTasks, this);
     this.settings = settings ?? { ...DEFAULT_GAME_SETTINGS };
     this.aiController = null;
     this.soundEnabled = true;
@@ -122,6 +127,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private startRound(): void {
+    this.clearAsyncTasks();
     this.roundState = RoundState.GENERATING;
 
     for (const wall of this.walls) wall.destroy();
@@ -171,13 +177,14 @@ export class GameScene extends Phaser.Scene {
     this.updateScoreText();
 
     let tickCount = 0;
-    this.time.addEvent({
+    this.countdownEvent = this.time.addEvent({
       delay: ROUND_START_DELAY * 1000 / 3,
       repeat: 2,
       callback: () => {
         tickCount++;
         this.soundManager.countdownTick();
         if (tickCount === 3) {
+          this.countdownEvent = null;
           this.statusText.setText('');
           this.roundState = RoundState.PLAYING;
         }
@@ -423,6 +430,17 @@ export class GameScene extends Phaser.Scene {
     this.startRound();
   }
 
+  private clearAsyncTasks(): void {
+    this.countdownEvent?.remove(false);
+    this.countdownEvent = null;
+    this.roundEndEvent?.remove(false);
+    this.roundEndEvent = null;
+    if (this.matchOverSpaceHandler) {
+      this.input.keyboard?.off('keydown-SPACE', this.matchOverSpaceHandler);
+      this.matchOverSpaceHandler = null;
+    }
+  }
+
   private updateTank(tank: Tank, forward: boolean, backward: boolean, rotateInput: number, dt: number): void {
     if (rotateInput !== 0) {
       tank.rotation += rotateInput * TANK_ROTATE_SPEED * dt;
@@ -550,15 +568,18 @@ export class GameScene extends Phaser.Scene {
     this.updateScoreText();
     this.soundManager.victory();
 
-    this.time.delayedCall(ROUND_END_DELAY * 1000, () => {
+    this.roundEndEvent = this.time.delayedCall(ROUND_END_DELAY * 1000, () => {
+      this.roundEndEvent = null;
       const matchWinnerId = this.scores.findIndex(score => score >= SCORE_TO_WIN);
       if (matchWinnerId !== -1) {
         this.roundState = RoundState.MATCH_OVER;
         const winner = this.getPlayerLabel(matchWinnerId, true);
         this.statusText.setText(`${winner} Wins the Match!\n\nPress SPACE for Menu`);
-        this.input.keyboard!.once('keydown-SPACE', () => {
+        this.matchOverSpaceHandler = () => {
+          this.matchOverSpaceHandler = null;
           this.scene.start('MenuScene');
-        });
+        };
+        this.input.keyboard!.once('keydown-SPACE', this.matchOverSpaceHandler);
       } else {
         this.startRound();
       }
