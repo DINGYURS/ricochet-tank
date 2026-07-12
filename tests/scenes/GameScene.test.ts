@@ -879,6 +879,27 @@ describe('GameScene', () => {
     expect(Math.hypot((scene as any).fragFragments[0].vx, (scene as any).fragFragments[0].vy)).toBeCloseTo(320);
   });
 
+  it('keeps the frame-start Frag Bomb detonation command when the bomb auto-detonates during update', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const owner = (scene as any).tanks[0];
+    owner.heldPowerUp = 'FragBomb';
+    (scene as any).handleWeaponInput(owner, { shoot: true, usePowerUp: false }, 0);
+    owner.heldPowerUp = 'Rocket';
+    mockPlayer1Input.shoot = true;
+    (scene as any).wallData = [{ x: 0, y: 0, width: 10, height: 10, orientation: 'vertical' }];
+    vi.mocked(circleRectOverlap).mockReturnValueOnce(true).mockReturnValue(false);
+    const standard = vi.spyOn(scene as any, 'handleShoot');
+    const active = vi.spyOn(scene as any, 'handleUsePowerUp');
+    (scene as any).roundState = 'PLAYING';
+
+    scene.update(0, 16);
+
+    expect(standard).not.toHaveBeenCalled();
+    expect(active).not.toHaveBeenCalled();
+    expect(owner.heldPowerUp).toBe('Rocket');
+  });
+
   it.each(['wall', 'tank', 'timeout'])('detonates a Frag Bomb on %s', trigger => {
     const scene = new GameScene();
     (scene as any).create({ mode: 'local', localPlayers: 2 });
@@ -985,5 +1006,27 @@ describe('GameScene', () => {
     const shutdownBomb = (scene as any).fragBombs[0];
     (scene as any).clearAsyncTasks();
     expect(shutdownBomb.destroy).toHaveBeenCalledOnce();
+  });
+
+  it('destroys only the eliminated owner Frag Bomb fragments before round over', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 3 });
+    const [owner, , survivor] = (scene as any).tanks;
+    owner.heldPowerUp = 'FragBomb';
+    (scene as any).handleWeaponInput(owner, { shoot: true, usePowerUp: false }, 0);
+    (scene as any).detonateFragBomb((scene as any).fragBombs[0]);
+    survivor.heldPowerUp = 'FragBomb';
+    (scene as any).handleWeaponInput(survivor, { shoot: true, usePowerUp: false }, 0);
+    (scene as any).detonateFragBomb((scene as any).fragBombs[0]);
+    const ownerFragments = (scene as any).fragFragments.filter((fragment: any) => fragment.ownerId === owner.playerId);
+    const survivorFragments = (scene as any).fragFragments.filter((fragment: any) => fragment.ownerId === survivor.playerId);
+    (scene as any).roundState = 'PLAYING';
+
+    (scene as any).eliminatePlayers([owner.playerId]);
+
+    expect((scene as any).roundState).toBe('PLAYING');
+    expect(ownerFragments.every((fragment: any) => !fragment.active)).toBe(true);
+    expect(survivorFragments.every((fragment: any) => fragment.active)).toBe(true);
+    expect((scene as any).fragFragments).toEqual(survivorFragments);
   });
 });

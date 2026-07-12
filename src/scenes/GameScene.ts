@@ -240,6 +240,9 @@ export class GameScene extends Phaser.Scene {
     const currentTimeMs = this.time.now;
     const eliminatedThisFrame = new Set<number>();
     const chargingPlayerIds = new Set(this.deathRayCharges.keys());
+    const activeFragBombOwnerIds = new Set(
+      this.fragBombs.filter(bomb => bomb.active).map(bomb => bomb.ownerId),
+    );
 
     this.updateDeathRays(dt, eliminatedThisFrame);
     for (const playerId of eliminatedThisFrame) {
@@ -289,7 +292,7 @@ export class GameScene extends Phaser.Scene {
         shoot: input.shoot,
         usePowerUp: input.usePowerUp,
         heldPowerUp: tank.heldPowerUp,
-        hasActiveFragBomb: this.fragBombs.some(bomb => bomb.active && bomb.ownerId === tank.playerId),
+        hasActiveFragBomb: activeFragBombOwnerIds.has(tank.playerId),
       });
       const activePowerUp = action === 'active' ? tank.heldPowerUp : null;
       if (action === 'active') tank.heldPowerUp = null;
@@ -839,6 +842,10 @@ export class GameScene extends Phaser.Scene {
         if (bomb.ownerId === playerId) bomb.destroy();
       }
       this.fragBombs = this.fragBombs.filter(bomb => bomb.active);
+      for (const fragment of this.fragFragments) {
+        if (fragment.ownerId === playerId) fragment.destroy();
+      }
+      this.fragFragments = this.fragFragments.filter(fragment => fragment.active);
       const tank = this.tanks.find(candidate => candidate.playerId === playerId);
       if (tank?.alive) tank.setAlive(false);
     }
