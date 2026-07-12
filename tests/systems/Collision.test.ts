@@ -20,6 +20,35 @@ describe('segmentCircleTOI', () => {
     expect(segmentCircleTOI(0, 1, 10, 1, 5, 0, 1)).toBeCloseTo(0.5);
   });
 
+  it('returns contact for an arbitrary-angle tangent', () => {
+    expect(segmentCircleTOI(
+      -10.031990400796413, 0.5993067647946363,
+      9.952011732423145, 1.3990934485273194,
+      0, 0, 1,
+    )).toBeCloseTo(0.5);
+  });
+
+  it('rejects an arbitrary-angle path offset outward by 1e-6', () => {
+    const startX = -10.031990400796413;
+    const startY = 0.5993067647946363;
+    const endX = 9.952011732423145;
+    const endY = 1.3990934485273194;
+    const dx = endX - startX;
+    const dy = endY - startY;
+    const length = Math.hypot(dx, dy);
+    const normalX = -dy / length;
+    const normalY = dx / length;
+    const outwardSign = startX * normalX + startY * normalY >= 0 ? 1 : -1;
+    const offsetX = normalX * outwardSign * 1e-6;
+    const offsetY = normalY * outwardSign * 1e-6;
+
+    expect(segmentCircleTOI(
+      startX + offsetX, startY + offsetY,
+      endX + offsetX, endY + offsetY,
+      0, 0, 1,
+    )).toBeNull();
+  });
+
   it('rejects a near miss', () => {
     expect(segmentCircleTOI(0, 1.001, 10, 1.001, 5, 0, 1)).toBeNull();
   });

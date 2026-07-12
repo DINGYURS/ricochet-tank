@@ -59,8 +59,11 @@ export function segmentCircleTOI(
   if (a === 0) return null;
   const b = 2 * (offsetX * dx + offsetY * dy);
   const discriminant = b * b - 4 * a * c;
-  if (discriminant < 0) return null;
-  const t = (-b - Math.sqrt(Math.max(0, discriminant))) / (2 * a);
+  const discriminantScale = Math.abs(b * b) + Math.abs(4 * a * c);
+  const tolerance = Number.EPSILON * discriminantScale * 8;
+  if (discriminant < -tolerance) return null;
+  const safeDiscriminant = Math.max(0, discriminant);
+  const t = (-b - Math.sqrt(safeDiscriminant)) / (2 * a);
   return t >= 0 && t <= 1 ? t : null;
 }
 
