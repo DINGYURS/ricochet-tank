@@ -34,15 +34,16 @@ export function advanceRCMissile(
 
 export function reflectRCMissile(
   state: RCMissileState,
-  orientation: 'vertical' | 'horizontal',
+  orientation: 'vertical' | 'horizontal' | Array<'vertical' | 'horizontal'>,
   maxBounces: number,
 ): RCMissileState {
   if (!state.active) return state;
+  const orientations = new Set(Array.isArray(orientation) ? orientation : [orientation]);
   const bounces = state.bounces + 1;
   return {
     ...state,
-    vx: orientation === 'vertical' ? -state.vx : state.vx,
-    vy: orientation === 'horizontal' ? -state.vy : state.vy,
+    vx: orientations.has('vertical') ? -state.vx : state.vx,
+    vy: orientations.has('horizontal') ? -state.vy : state.vy,
     bounces,
     active: bounces <= maxBounces,
   };

@@ -85,6 +85,7 @@ export class GameScene extends Phaser.Scene {
   private deathRayCharges = new Map<number, ActiveDeathRayCharge>();
   private deathRayBeams: Array<{ graphics: Phaser.GameObjects.Graphics; remaining: number }> = [];
   private rcMissiles: RCMissile[] = [];
+  private rcMissileWallCooldowns = new Map<RCMissile, Map<number, number>>();
 
   constructor() {
     super({ key: GameScene.KEY });
@@ -261,9 +262,6 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.updateRCMissiles(dt, inputs, eliminatedThisFrame);
-    for (const playerId of eliminatedThisFrame) {
-      this.tanks.find(tank => tank.playerId === playerId)?.setAlive(false);
-    }
     const rcOwnerIds = new Set(this.rcMissiles.filter(missile => missile.active).map(missile => missile.ownerId));
 
     for (let playerId = 0; playerId < this.tanks.length; playerId++) {
@@ -511,6 +509,7 @@ export class GameScene extends Phaser.Scene {
   private clearRCMissiles(): void {
     for (const missile of this.rcMissiles) missile.destroy();
     this.rcMissiles = [];
+    this.rcMissileWallCooldowns.clear();
   }
 
   private updateRCMissiles(dt: number, inputs: PlayerInput[], eliminatedThisFrame: Set<number>): void {
@@ -526,15 +525,31 @@ export class GameScene extends Phaser.Scene {
       missile.update(dt, steerInput);
       if (!missile.active) continue;
 
-      for (const wall of this.wallData) {
+      const wallCooldowns = this.rcMissileWallCooldowns.get(missile) ?? new Map<number, number>();
+      this.rcMissileWallCooldowns.set(missile, wallCooldowns);
+      for (const [wallIndex, cooldown] of wallCooldowns) {
+        const remaining = cooldown - dt;
+        if (remaining <= 0) wallCooldowns.delete(wallIndex);
+        else wallCooldowns.set(wallIndex, remaining);
+      }
+      const wallCollisions: Array<{ index: number; orientation: 'vertical' | 'horizontal' }> = [];
+      for (let wallIndex = 0; wallIndex < this.wallData.length; wallIndex++) {
+        if (wallCooldowns.has(wallIndex)) continue;
+        const wall = this.wallData[wallIndex];
         if (!circleRectOverlap(missile.x, missile.y, missile.radius, wall.x, wall.y, wall.width, wall.height)) continue;
-        missile.reflect(wall.orientation);
+        wallCollisions.push({ index: wallIndex, orientation: wall.orientation });
+      }
+      if (wallCollisions.length > 0) {
+        const orientations = [...new Set(wallCollisions.map(collision => collision.orientation))];
+        missile.reflect(orientations);
+        for (const collision of wallCollisions) {
+          wallCooldowns.set(collision.index, BULLET_WALL_COOLDOWN);
+        }
         const speed = Math.hypot(missile.state.vx, missile.state.vy);
         if (missile.active && speed > 0) {
           missile.state.x += missile.state.vx / speed * BULLET_WALL_PUSH;
           missile.state.y += missile.state.vy / speed * BULLET_WALL_PUSH;
         }
-        break;
       }
       if (!missile.active) continue;
 
@@ -554,7 +569,10 @@ export class GameScene extends Phaser.Scene {
         break;
       }
     }
-    this.rcMissiles = this.rcMissiles.filter(missile => missile.active);
+    this.rcMissiles = this.rcMissiles.filter(missile => {
+      if (!missile.active) this.rcMissileWallCooldowns.delete(missile);
+      return missile.active;
+    });
   }
 
   private updateDeathRays(dt: number, eliminatedThisFrame: Set<number>): void {
@@ -733,7 +751,10 @@ export class GameScene extends Phaser.Scene {
     for (const playerId of new Set(playerIds)) {
       this.deathRayCharges.delete(playerId);
       for (const missile of this.rcMissiles) {
-        if (missile.ownerId === playerId) missile.destroy();
+        if (missile.ownerId === playerId) {
+          missile.destroy();
+          this.rcMissileWallCooldowns.delete(missile);
+        }
       }
       this.rcMissiles = this.rcMissiles.filter(missile => missile.active);
       const tank = this.tanks.find(candidate => candidate.playerId === playerId);
@@ -851,6 +872,7 @@ export class GameScene extends Phaser.Scene {
           tank.playerId,
         );
         this.rcMissiles.push(missile);
+        this.rcMissileWallCooldowns.set(missile, new Map());
         this.soundManager.rocketFire();
         break;
       }

@@ -9,6 +9,14 @@ const mockPlayer1Input = vi.hoisted(() => ({
   shoot: false,
   usePowerUp: false,
 }));
+const mockPlayer2Input = vi.hoisted(() => ({
+  forward: false,
+  backward: false,
+  rotateLeft: false,
+  rotateRight: false,
+  shoot: false,
+  usePowerUp: false,
+}));
 
 // Mock Phaser before importing GameScene
 vi.mock('phaser', () => {
@@ -66,7 +74,7 @@ vi.mock('../../src/systems/InputManager', () => {
         return { ...mockPlayer1Input };
       }
       getPlayer2Input() {
-        return { forward: false, backward: false, rotateLeft: false, rotateRight: false, shoot: false, usePowerUp: false };
+        return { ...mockPlayer2Input };
       }
       getPlayer3Input() {
         return { forward: false, backward: false, rotateLeft: false, rotateRight: false, shoot: false, usePowerUp: false };
@@ -255,6 +263,7 @@ vi.mock('../../src/systems/AIController', () => {
 import { GameScene } from '../../src/scenes/GameScene';
 import { DEFAULT_GAME_SETTINGS, type GameSettings } from '../../src/config';
 import { circleCircleOverlap } from '../../src/systems/Collision';
+import { circleRectOverlap } from '../../src/systems/Collision';
 
 beforeEach(() => {
   mockEscapePressed.value = false;
@@ -266,7 +275,16 @@ beforeEach(() => {
     shoot: false,
     usePowerUp: false,
   });
+  Object.assign(mockPlayer2Input, {
+    forward: false,
+    backward: false,
+    rotateLeft: false,
+    rotateRight: false,
+    shoot: false,
+    usePowerUp: false,
+  });
   vi.mocked(circleCircleOverlap).mockReturnValue(false);
+  vi.mocked(circleRectOverlap).mockReturnValue(false);
 });
 
 describe('GameScene', () => {
@@ -712,5 +730,78 @@ describe('GameScene', () => {
 
     expect(missile.destroy).toHaveBeenCalledOnce();
     expect((scene as any).rcMissiles).toEqual([]);
+  });
+
+  it('allows an already-sampled counterattack before RC Missile elimination resolves', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const [owner, target] = (scene as any).tanks;
+    owner.heldPowerUp = 'RCMissile';
+    (scene as any).handleWeaponInput(owner, { shoot: true, usePowerUp: false }, 0);
+    const missile = (scene as any).rcMissiles[0];
+    missile.isOwnerSafe.mockReturnValue(true);
+    target.heldPowerUp = 'Laser';
+    mockPlayer2Input.shoot = true;
+    vi.mocked(circleCircleOverlap).mockReturnValue(true);
+    (scene as any).roundState = 'PLAYING';
+    const active = vi.spyOn(scene as any, 'handleUsePowerUp');
+
+    scene.update(0, 16);
+
+    expect(active).toHaveBeenCalledWith(target, true, 'Laser');
+    expect(target.alive).toBe(false);
+  });
+
+  it('reflects both axes once at a wall corner and suppresses overlap repeats', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const owner = (scene as any).tanks[0];
+    owner.heldPowerUp = 'RCMissile';
+    (scene as any).handleWeaponInput(owner, { shoot: true, usePowerUp: false }, 0);
+    const missile = (scene as any).rcMissiles[0];
+    (scene as any).wallData = [
+      { x: 0, y: 0, width: 10, height: 100, orientation: 'vertical' },
+      { x: 0, y: 0, width: 100, height: 10, orientation: 'horizontal' },
+    ];
+    vi.mocked(circleRectOverlap).mockReturnValue(true);
+    (scene as any).roundState = 'PLAYING';
+
+    scene.update(0, 16);
+    scene.update(0, 16);
+
+    expect(missile.reflect).toHaveBeenCalledTimes(1);
+    expect(missile.reflect).toHaveBeenCalledWith(['vertical', 'horizontal']);
+  });
+
+  it('allows an RC Missile to hit its owner after launch safety', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const owner = (scene as any).tanks[0];
+    owner.heldPowerUp = 'RCMissile';
+    (scene as any).handleWeaponInput(owner, { shoot: true, usePowerUp: false }, 0);
+    (scene as any).rcMissiles[0].isOwnerSafe.mockReturnValue(false);
+    vi.mocked(circleCircleOverlap).mockReturnValue(true);
+    (scene as any).roundState = 'PLAYING';
+
+    scene.update(0, 16);
+
+    expect(owner.alive).toBe(false);
+  });
+
+  it('consumes a shield instead of eliminating an RC Missile target', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const [owner, target] = (scene as any).tanks;
+    owner.heldPowerUp = 'RCMissile';
+    (scene as any).handleWeaponInput(owner, { shoot: true, usePowerUp: false }, 0);
+    (scene as any).rcMissiles[0].isOwnerSafe.mockReturnValue(true);
+    target.shieldActive = true;
+    vi.mocked(circleCircleOverlap).mockReturnValue(true);
+    (scene as any).roundState = 'PLAYING';
+
+    scene.update(0, 16);
+
+    expect(target.shieldActive).toBe(false);
+    expect(target.alive).toBe(true);
   });
 });

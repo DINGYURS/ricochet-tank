@@ -43,6 +43,14 @@ describe('reflectRCMissile', () => {
     const current = { ...state(), bounces: 3 };
     expect(reflectRCMissile(current, 'horizontal', 3).active).toBe(false);
   });
+
+  it('reflects both axes but counts a wall corner as one bounce event', () => {
+    const current = { ...state(), vy: 50 };
+    const result = reflectRCMissile(current, ['vertical', 'horizontal'], 3);
+    expect(result.vx).toBe(-100);
+    expect(result.vy).toBe(-50);
+    expect(result.bounces).toBe(1);
+  });
 });
 
 describe('isRCMissileOwnerSafe', () => {

@@ -49,7 +49,7 @@ export class RCMissile {
     this.syncGraphics();
   }
 
-  reflect(orientation: 'vertical' | 'horizontal'): void {
+  reflect(orientation: 'vertical' | 'horizontal' | Array<'vertical' | 'horizontal'>): void {
     this.state = reflectRCMissile(this.state, orientation, RC_MISSILE_MAX_BOUNCES);
     if (!this.state.active) this.destroyGraphics();
     else this.syncGraphics();
