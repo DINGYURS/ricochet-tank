@@ -1007,6 +1007,70 @@ describe('GameScene', () => {
     expect((scene as any).fragFragments).toHaveLength(12);
   });
 
+  it('detonates at the lifetime point when expiry is earlier than a later wall impact', async () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const { FragBomb } = await vi.importMock<typeof import('../../src/objects/FragBomb')>('../../src/objects/FragBomb');
+    const bomb = new FragBomb(scene as any, 10, 50, 100, 0, 0);
+    bomb.age = 3.99;
+    (scene as any).fragBombs = [bomb];
+    (scene as any).wallData = [{ x: 0, y: 0, width: 10, height: 10, orientation: 'vertical' }];
+    vi.mocked(sweptCircleRectTOI).mockReturnValueOnce(0.8).mockReturnValue(null);
+
+    (scene as any).updateFragBombs(0.05, new Set());
+
+    expect(bomb.active).toBe(false);
+    expect((scene as any).fragFragments).toHaveLength(12);
+    expect((scene as any).fragFragments.every((fragment: any) => Math.abs(fragment.x - 11) < 0.000001 && fragment.y === 50)).toBe(true);
+  });
+
+  it('uses the real swept wall path when lifetime expires before impact', async () => {
+    const collision = await vi.importActual<typeof import('../../src/systems/Collision')>('../../src/systems/Collision');
+    vi.mocked(sweptCircleRectTOI).mockImplementation(collision.sweptCircleRectTOI);
+    vi.mocked(sweptCircleCircleTOI).mockImplementation(collision.sweptCircleCircleTOI);
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const { FragBomb } = await vi.importMock<typeof import('../../src/objects/FragBomb')>('../../src/objects/FragBomb');
+    const bomb = new FragBomb(scene as any, 10, 50, 100, 0, 0);
+    bomb.age = 3.99;
+    (scene as any).fragBombs = [bomb];
+    (scene as any).wallData = [{ x: 20, y: 0, width: 10, height: 100, orientation: 'vertical' }];
+
+    (scene as any).updateFragBombs(0.05, new Set());
+
+    expect((scene as any).fragFragments[0].x).toBeCloseTo(11);
+  });
+
+  it('keeps tank priority when tank, wall, and lifetime have the same TOI', async () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const { FragBomb } = await vi.importMock<typeof import('../../src/objects/FragBomb')>('../../src/objects/FragBomb');
+    const bomb = new FragBomb(scene as any, 10, 50, 100, 0, 0);
+    bomb.age = 3.99;
+    (scene as any).fragBombs = [bomb];
+    (scene as any).wallData = [{ x: 0, y: 0, width: 10, height: 10, orientation: 'vertical' }];
+    vi.mocked(sweptCircleRectTOI).mockReturnValueOnce(0.2).mockReturnValue(null);
+    vi.mocked(sweptCircleCircleTOI).mockReturnValueOnce(0.2).mockReturnValue(null);
+
+    (scene as any).updateFragBombs(0.05, new Set());
+
+    expect((scene as any).fragFragments[0].x).toBeCloseTo(11);
+  });
+
+  it('expires an already overdue bomb at TOI zero when dt is zero', async () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const { FragBomb } = await vi.importMock<typeof import('../../src/objects/FragBomb')>('../../src/objects/FragBomb');
+    const bomb = new FragBomb(scene as any, 10, 50, 100, 0, 0);
+    bomb.age = 4.01;
+    (scene as any).fragBombs = [bomb];
+
+    (scene as any).updateFragBombs(0, new Set());
+
+    expect((scene as any).fragFragments[0].x).toBe(10);
+    expect(Number.isFinite((scene as any).fragFragments[0].x)).toBe(true);
+  });
+
   it('destroys fragments on walls without reflecting them', () => {
     const scene = new GameScene();
     (scene as any).create({ mode: 'local', localPlayers: 2 });

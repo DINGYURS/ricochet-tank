@@ -555,6 +555,7 @@ export class GameScene extends Phaser.Scene {
     const fragmentsAtFrameStart = [...this.fragFragments];
     for (const bomb of this.fragBombs) {
       if (!bomb.active) continue;
+      const ageBeforeUpdate = bomb.age;
       bomb.update(dt);
       let wallHit: { toi: number } | null = null;
       for (const wall of this.wallData) {
@@ -571,12 +572,20 @@ export class GameScene extends Phaser.Scene {
       }
       const tankFirst = tankHit !== null && (wallHit === null || tankHit.toi <= wallHit.toi);
       const collisionTOI = tankFirst ? tankHit!.toi : wallHit?.toi ?? null;
+      const lifetimeTOI = ageBeforeUpdate >= FRAG_BOMB_MAX_LIFETIME
+        ? 0
+        : dt > 0 && bomb.age >= FRAG_BOMB_MAX_LIFETIME
+          ? Math.max(0, Math.min(1, (FRAG_BOMB_MAX_LIFETIME - ageBeforeUpdate) / dt))
+          : null;
+      const lifetimeFirst = lifetimeTOI !== null && (collisionTOI === null || lifetimeTOI < collisionTOI);
+      const detonationTOI = lifetimeFirst ? lifetimeTOI : collisionTOI;
       if (shouldDetonateFragBomb({ manualTrigger: false, collision: collisionTOI !== null, age: bomb.age }, FRAG_BOMB_MAX_LIFETIME)) {
-        if (collisionTOI !== null) {
+        if (detonationTOI !== null) {
           const dx = bomb.x - bomb.previousX;
           const dy = bomb.y - bomb.previousY;
           const pathLength = Math.hypot(dx, dy);
-          const t = tankFirst ? collisionTOI : Math.max(0, collisionTOI - (pathLength === 0 ? 0 : 0.001 / pathLength));
+          const wallFirst = !lifetimeFirst && !tankFirst;
+          const t = wallFirst ? Math.max(0, detonationTOI - (pathLength === 0 ? 0 : 0.001 / pathLength)) : detonationTOI;
           bomb.x = bomb.previousX + dx * t;
           bomb.y = bomb.previousY + dy * t;
         }
