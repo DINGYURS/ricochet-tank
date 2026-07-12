@@ -12,10 +12,10 @@ describe('PowerUpManager logic', () => {
     expect(ALL_POWERUP_TYPES).toContain(type);
   });
 
-  it('spawns completed classic weapons but not unfinished ones', () => {
+  it('spawns every completed classic weapon', () => {
     expect(SPAWNABLE_POWERUP_TYPES).toContain(PowerUpType.DeathRay);
     expect(SPAWNABLE_POWERUP_TYPES).toContain(PowerUpType.RCMissile);
-    expect(SPAWNABLE_POWERUP_TYPES).not.toContain(PowerUpType.FragBomb);
+    expect(SPAWNABLE_POWERUP_TYPES).toContain(PowerUpType.FragBomb);
   });
 });
 

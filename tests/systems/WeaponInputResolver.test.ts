@@ -30,4 +30,31 @@ describe('resolveWeaponAction', () => {
   it('does nothing when the legacy shortcut is pressed with no active weapon', () => {
     expect(resolveWeaponAction({ shoot: false, usePowerUp: true, heldPowerUp: PowerUpType.DoubleShot })).toBe('none');
   });
+
+  it('detonates an active Frag Bomb from primary fire without a standard shot', () => {
+    expect(resolveWeaponAction({
+      shoot: true,
+      usePowerUp: false,
+      heldPowerUp: null,
+      hasActiveFragBomb: true,
+    })).toBe('detonate-frag-bomb');
+  });
+
+  it('does not detonate an active Frag Bomb from the legacy shortcut alone', () => {
+    expect(resolveWeaponAction({
+      shoot: false,
+      usePowerUp: true,
+      heldPowerUp: null,
+      hasActiveFragBomb: true,
+    })).toBe('none');
+  });
+
+  it('prioritizes primary Frag Bomb detonation over a newly held active weapon', () => {
+    expect(resolveWeaponAction({
+      shoot: true,
+      usePowerUp: false,
+      heldPowerUp: PowerUpType.Rocket,
+      hasActiveFragBomb: true,
+    })).toBe('detonate-frag-bomb');
+  });
 });

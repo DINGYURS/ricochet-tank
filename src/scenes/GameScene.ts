@@ -10,6 +10,8 @@ import {
   ROCKET_TURN_SPEED, LASER_LIFETIME, POWERUP_RADIUS,
   DEATH_RAY_CHARGE_DURATION, DEATH_RAY_BEAM_LIFETIME,
   RC_MISSILE_SPEED,
+  FRAG_BOMB_SPEED, FRAG_BOMB_MAX_LIFETIME,
+  FRAG_BOMB_FRAGMENT_COUNT, FRAG_BOMB_FRAGMENT_SPEED,
   DEFAULT_GAME_SETTINGS,
   DEBUG_AI_PATHS,
   type GameSettings,
@@ -33,6 +35,8 @@ import { PauseScene, type PauseStatus } from './PauseScene';
 import { resolveWeaponAction, type WeaponAction } from '../systems/WeaponInputResolver';
 import { advanceDeathRayCharge, traceDeathRay, type DeathRayChargeState, type Point } from '../systems/DeathRay';
 import { RCMissile } from '../objects/RCMissile';
+import { FragBomb, FragFragment } from '../objects/FragBomb';
+import { createFragmentVelocities, shouldDetonateFragBomb } from '../systems/FragBombPhysics';
 
 enum RoundState {
   GENERATING = 'GENERATING',
@@ -86,6 +90,8 @@ export class GameScene extends Phaser.Scene {
   private deathRayBeams: Array<{ graphics: Phaser.GameObjects.Graphics; remaining: number }> = [];
   private rcMissiles: RCMissile[] = [];
   private rcMissileWallCooldowns = new Map<RCMissile, Map<number, number>>();
+  private fragBombs: FragBomb[] = [];
+  private fragFragments: FragFragment[] = [];
 
   constructor() {
     super({ key: GameScene.KEY });
@@ -129,6 +135,8 @@ export class GameScene extends Phaser.Scene {
 
     this.rockets = [];
     this.mines = [];
+    this.fragBombs = [];
+    this.fragFragments = [];
     this.laserGraphics = null;
     this.laserTimer = 0;
 
@@ -150,6 +158,7 @@ export class GameScene extends Phaser.Scene {
     this.clearAsyncTasks();
     this.clearDeathRays();
     this.clearRCMissiles();
+    this.clearFragBombs();
     this.roundState = RoundState.GENERATING;
 
     for (const wall of this.walls) wall.destroy();
@@ -262,6 +271,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.updateRCMissiles(dt, inputs, eliminatedThisFrame);
+    this.updateFragBombs(dt, eliminatedThisFrame);
     const rcOwnerIds = new Set(this.rcMissiles.filter(missile => missile.active).map(missile => missile.ownerId));
 
     for (let playerId = 0; playerId < this.tanks.length; playerId++) {
@@ -279,6 +289,7 @@ export class GameScene extends Phaser.Scene {
         shoot: input.shoot,
         usePowerUp: input.usePowerUp,
         heldPowerUp: tank.heldPowerUp,
+        hasActiveFragBomb: this.fragBombs.some(bomb => bomb.active && bomb.ownerId === tank.playerId),
       });
       const activePowerUp = action === 'active' ? tank.heldPowerUp : null;
       if (action === 'active') tank.heldPowerUp = null;
@@ -390,7 +401,10 @@ export class GameScene extends Phaser.Scene {
     // Active weapons keep their previous lifecycle position after projectile updates.
     for (let playerId = 0; playerId < this.tanks.length; playerId++) {
       const command = weaponCommands[playerId];
-      if (this.tanks[playerId].alive && command.action === 'active') {
+      if (this.tanks[playerId].alive && command.action === 'detonate-frag-bomb') {
+        const bomb = this.fragBombs.find(candidate => candidate.active && candidate.ownerId === this.tanks[playerId].playerId);
+        if (bomb) this.detonateFragBomb(bomb);
+      } else if (this.tanks[playerId].alive && command.action === 'active') {
         this.executeWeaponAction(
           this.tanks[playerId],
           'active',
@@ -498,6 +512,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.clearDeathRays();
     this.clearRCMissiles();
+    this.clearFragBombs();
   }
 
   private clearDeathRays(): void {
@@ -510,6 +525,65 @@ export class GameScene extends Phaser.Scene {
     for (const missile of this.rcMissiles) missile.destroy();
     this.rcMissiles = [];
     this.rcMissileWallCooldowns.clear();
+  }
+
+  private clearFragBombs(): void {
+    for (const bomb of this.fragBombs) bomb.destroy();
+    for (const fragment of this.fragFragments) fragment.destroy();
+    this.fragBombs = [];
+    this.fragFragments = [];
+  }
+
+  private detonateFragBomb(bomb: FragBomb): void {
+    if (!bomb.active) return;
+    const velocities = createFragmentVelocities(FRAG_BOMB_FRAGMENT_COUNT, FRAG_BOMB_FRAGMENT_SPEED);
+    for (const velocity of velocities) {
+      this.fragFragments.push(new FragFragment(this, bomb.x, bomb.y, velocity.vx, velocity.vy, bomb.ownerId));
+    }
+    bomb.destroy();
+    this.fragBombs = this.fragBombs.filter(candidate => candidate.active);
+    this.soundManager.explosion();
+  }
+
+  private updateFragBombs(dt: number, eliminatedThisFrame: Set<number>): void {
+    for (const bomb of this.fragBombs) {
+      if (!bomb.active) continue;
+      bomb.update(dt);
+      const hitWall = this.wallData.some(wall =>
+        circleRectOverlap(bomb.x, bomb.y, 6, wall.x, wall.y, wall.width, wall.height));
+      const hitTank = this.tanks.some(tank => tank.alive &&
+        circleCircleOverlap(bomb.x, bomb.y, 6, tank.x, tank.y, tank.radius));
+      if (shouldDetonateFragBomb({ manualTrigger: false, collision: hitWall || hitTank, age: bomb.age }, FRAG_BOMB_MAX_LIFETIME)) {
+        this.detonateFragBomb(bomb);
+      }
+    }
+    this.fragBombs = this.fragBombs.filter(bomb => bomb.active);
+
+    for (const fragment of this.fragFragments) {
+      if (!fragment.active) continue;
+      fragment.update(dt);
+      const hitWall = this.wallData.some(wall =>
+        circleRectOverlap(fragment.x, fragment.y, 2, wall.x, wall.y, wall.width, wall.height));
+      if (hitWall) {
+        fragment.destroy();
+        continue;
+      }
+      for (const tank of this.tanks) {
+        if (!tank.alive) continue;
+        if (!circleCircleOverlap(fragment.x, fragment.y, 2, tank.x, tank.y, tank.radius)) continue;
+        if (tank.shieldActive) {
+          tank.shieldActive = false;
+          tank.passiveEffects.delete(PowerUpType.Shield);
+          tank.passiveTimers.delete(PowerUpType.Shield);
+          this.soundManager.shieldBreak();
+        } else {
+          eliminatedThisFrame.add(tank.playerId);
+        }
+        fragment.destroy();
+        break;
+      }
+    }
+    this.fragFragments = this.fragFragments.filter(fragment => fragment.active);
   }
 
   private updateRCMissiles(dt: number, inputs: PlayerInput[], eliminatedThisFrame: Set<number>): void {
@@ -687,6 +761,7 @@ export class GameScene extends Phaser.Scene {
       shoot: input.shoot,
       usePowerUp: input.usePowerUp,
       heldPowerUp: tank.heldPowerUp,
+      hasActiveFragBomb: this.fragBombs.some(bomb => bomb.active && bomb.ownerId === tank.playerId),
     });
     this.executeWeaponAction(tank, action, currentTimeMs);
   }
@@ -699,6 +774,9 @@ export class GameScene extends Phaser.Scene {
   ): void {
     if (action === 'active') {
       this.handleUsePowerUp(tank, true, activePowerUp);
+    } else if (action === 'detonate-frag-bomb') {
+      const bomb = this.fragBombs.find(candidate => candidate.active && candidate.ownerId === tank.playerId);
+      if (bomb) this.detonateFragBomb(bomb);
     } else if (action === 'standard') {
       this.handleShoot(tank, true, currentTimeMs);
     }
@@ -757,6 +835,10 @@ export class GameScene extends Phaser.Scene {
         }
       }
       this.rcMissiles = this.rcMissiles.filter(missile => missile.active);
+      for (const bomb of this.fragBombs) {
+        if (bomb.ownerId === playerId) bomb.destroy();
+      }
+      this.fragBombs = this.fragBombs.filter(bomb => bomb.active);
       const tank = this.tanks.find(candidate => candidate.playerId === playerId);
       if (tank?.alive) tank.setAlive(false);
     }
@@ -771,6 +853,7 @@ export class GameScene extends Phaser.Scene {
     for (const mine of this.mines) mine.destroy();
     this.mines = [];
     this.clearRCMissiles();
+    this.clearFragBombs();
     if (this.laserGraphics) { this.laserGraphics.destroy(); this.laserGraphics = null; }
     if (result.draw) {
       this.statusText.setText('DRAW!');
@@ -874,6 +957,18 @@ export class GameScene extends Phaser.Scene {
         this.rcMissiles.push(missile);
         this.rcMissileWallCooldowns.set(missile, new Map());
         this.soundManager.rocketFire();
+        break;
+      }
+      case PowerUpType.FragBomb: {
+        const origin = tank.getBarrelTip();
+        this.fragBombs.push(new FragBomb(
+          this,
+          origin.x,
+          origin.y,
+          Math.cos(tank.rotation) * FRAG_BOMB_SPEED,
+          Math.sin(tank.rotation) * FRAG_BOMB_SPEED,
+          tank.playerId,
+        ));
         break;
       }
     }

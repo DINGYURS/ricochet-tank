@@ -248,6 +248,46 @@ vi.mock('../../src/objects/RCMissile', () => {
   };
 });
 
+vi.mock('../../src/objects/FragBomb', () => {
+  class FragBomb {
+    x!: number;
+    y!: number;
+    vx!: number;
+    vy!: number;
+    age = 0;
+    ownerId!: number;
+    active = true;
+    radius = 6;
+    destroy = vi.fn(() => { this.active = false; });
+    constructor(_scene: any, x: number, y: number, vx: number, vy: number, ownerId: number) {
+      Object.assign(this, { x, y, vx, vy, ownerId });
+    }
+    update(dt: number) {
+      this.x += this.vx * dt;
+      this.y += this.vy * dt;
+      this.age += dt;
+    }
+  }
+  class FragFragment {
+    x!: number;
+    y!: number;
+    vx!: number;
+    vy!: number;
+    ownerId!: number;
+    active = true;
+    radius = 2;
+    destroy = vi.fn(() => { this.active = false; });
+    constructor(_scene: any, x: number, y: number, vx: number, vy: number, ownerId: number) {
+      Object.assign(this, { x, y, vx, vy, ownerId });
+    }
+    update(dt: number) {
+      this.x += this.vx * dt;
+      this.y += this.vy * dt;
+    }
+  }
+  return { FragBomb, FragFragment };
+});
+
 vi.mock('../../src/systems/AIController', () => {
   return {
     AIController: class {
@@ -803,5 +843,147 @@ describe('GameScene', () => {
 
     expect(target.shieldActive).toBe(false);
     expect(target.alive).toBe(true);
+  });
+
+  it('launches and consumes a Frag Bomb from primary or legacy active input', () => {
+    for (const input of [
+      { shoot: true, usePowerUp: false },
+      { shoot: false, usePowerUp: true },
+    ]) {
+      const scene = new GameScene();
+      (scene as any).create({ mode: 'local', localPlayers: 2 });
+      const owner = (scene as any).tanks[0];
+      owner.heldPowerUp = 'FragBomb';
+
+      (scene as any).handleWeaponInput(owner, input, 0);
+
+      expect((scene as any).fragBombs).toHaveLength(1);
+      expect((scene as any).fragBombs[0].ownerId).toBe(0);
+      expect(owner.heldPowerUp).toBeNull();
+    }
+  });
+
+  it('detonates the active Frag Bomb on second primary input without firing a bullet', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const owner = (scene as any).tanks[0];
+    owner.heldPowerUp = 'FragBomb';
+    (scene as any).handleWeaponInput(owner, { shoot: true, usePowerUp: false }, 0);
+    const standard = vi.spyOn(scene as any, 'handleShoot');
+
+    (scene as any).handleWeaponInput(owner, { shoot: true, usePowerUp: false }, 1);
+
+    expect(standard).not.toHaveBeenCalled();
+    expect((scene as any).fragBombs).toEqual([]);
+    expect((scene as any).fragFragments).toHaveLength(12);
+    expect(Math.hypot((scene as any).fragFragments[0].vx, (scene as any).fragFragments[0].vy)).toBeCloseTo(320);
+  });
+
+  it.each(['wall', 'tank', 'timeout'])('detonates a Frag Bomb on %s', trigger => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const owner = (scene as any).tanks[0];
+    owner.heldPowerUp = 'FragBomb';
+    (scene as any).handleWeaponInput(owner, { shoot: true, usePowerUp: false }, 0);
+    if (trigger === 'wall') {
+      (scene as any).wallData = [{ x: 0, y: 0, width: 10, height: 10, orientation: 'vertical' }];
+      vi.mocked(circleRectOverlap).mockReturnValueOnce(true).mockReturnValue(false);
+    } else if (trigger === 'tank') {
+      vi.mocked(circleCircleOverlap).mockReturnValueOnce(true).mockReturnValue(false);
+    } else {
+      (scene as any).fragBombs[0].age = 4;
+    }
+
+    (scene as any).updateFragBombs(0, new Set());
+
+    expect((scene as any).fragBombs).toEqual([]);
+    expect((scene as any).fragFragments).toHaveLength(12);
+  });
+
+  it('destroys fragments on walls without reflecting them', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const owner = (scene as any).tanks[0];
+    owner.heldPowerUp = 'FragBomb';
+    (scene as any).handleWeaponInput(owner, { shoot: true, usePowerUp: false }, 0);
+    (scene as any).detonateFragBomb((scene as any).fragBombs[0]);
+    const fragment = (scene as any).fragFragments[0];
+    (scene as any).wallData = [{ x: 0, y: 0, width: 10, height: 10, orientation: 'vertical' }];
+    vi.mocked(circleRectOverlap).mockReturnValue(true);
+
+    (scene as any).updateFragBombs(0, new Set());
+
+    expect(fragment.destroy).toHaveBeenCalledOnce();
+    expect((scene as any).fragFragments).not.toContain(fragment);
+  });
+
+  it('lets Frag Bomb fragments damage the owner and consume shields', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const [owner, target] = (scene as any).tanks;
+    owner.heldPowerUp = 'FragBomb';
+    (scene as any).handleWeaponInput(owner, { shoot: true, usePowerUp: false }, 0);
+    (scene as any).detonateFragBomb((scene as any).fragBombs[0]);
+    target.shieldActive = true;
+    vi.mocked(circleCircleOverlap)
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true);
+    const eliminated = new Set<number>();
+
+    (scene as any).updateFragBombs(0, eliminated);
+
+    expect(eliminated).toContain(owner.playerId);
+    expect(target.shieldActive).toBe(false);
+    expect(eliminated).not.toContain(target.playerId);
+  });
+
+  it('aggregates simultaneous Frag Bomb fragment eliminations before round resolution', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const [owner, target] = (scene as any).tanks;
+    owner.heldPowerUp = 'FragBomb';
+    (scene as any).handleWeaponInput(owner, { shoot: true, usePowerUp: false }, 0);
+    (scene as any).detonateFragBomb((scene as any).fragBombs[0]);
+    vi.mocked(circleCircleOverlap)
+      .mockReturnValueOnce(false).mockReturnValueOnce(true)
+      .mockReturnValueOnce(true);
+    (scene as any).roundState = 'PLAYING';
+
+    scene.update(0, 0);
+
+    expect(owner.alive).toBe(false);
+    expect(target.alive).toBe(false);
+    expect((scene as any).statusText.setText).toHaveBeenCalledWith('DRAW!');
+  });
+
+  it('cleans Frag Bombs and fragments on restart, shutdown, round over, and owner elimination', () => {
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 3 });
+    const owner = (scene as any).tanks[0];
+    owner.heldPowerUp = 'FragBomb';
+    (scene as any).handleWeaponInput(owner, { shoot: true, usePowerUp: false }, 0);
+    const bomb = (scene as any).fragBombs[0];
+    (scene as any).fragFragments.push({ active: true, destroy: vi.fn(function (this: any) { this.active = false; }) });
+    const fragment = (scene as any).fragFragments[0];
+    (scene as any).roundState = 'PLAYING';
+
+    (scene as any).eliminatePlayers([0, 1]);
+    expect(bomb.destroy).toHaveBeenCalledOnce();
+    expect(fragment.destroy).toHaveBeenCalledOnce();
+
+    const restartFragment = { active: true, destroy: vi.fn(function (this: any) { this.active = false; }) };
+    (scene as any).fragFragments.push(restartFragment);
+    scene.restartMatch();
+    expect(restartFragment.destroy).toHaveBeenCalledOnce();
+    expect((scene as any).fragBombs).toEqual([]);
+    expect((scene as any).fragFragments).toEqual([]);
+
+    const restartedOwner = (scene as any).tanks[0];
+    restartedOwner.heldPowerUp = 'FragBomb';
+    (scene as any).handleWeaponInput(restartedOwner, { shoot: true, usePowerUp: false }, 0);
+    const shutdownBomb = (scene as any).fragBombs[0];
+    (scene as any).clearAsyncTasks();
+    expect(shutdownBomb.destroy).toHaveBeenCalledOnce();
   });
 });

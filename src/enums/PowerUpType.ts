@@ -32,6 +32,4 @@ export const POWERUP_VISUALS: Record<PowerUpType, PowerUpVisual> = {
 
 export const ALL_POWERUP_TYPES = Object.values(PowerUpType);
 
-export const SPAWNABLE_POWERUP_TYPES: PowerUpType[] = ALL_POWERUP_TYPES.filter(
-  type => type !== PowerUpType.FragBomb,
-);
+export const SPAWNABLE_POWERUP_TYPES: PowerUpType[] = ALL_POWERUP_TYPES;
