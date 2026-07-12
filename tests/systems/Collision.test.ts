@@ -45,4 +45,20 @@ describe('sweptCircleRectOverlap', () => {
   it('detects a stationary circle already overlapping the wall', () => {
     expect(sweptCircleRectOverlap(84, 50, 84, 50, 2, 83, 0, 10, 100)).toBe(true);
   });
+
+  it('does not report a path through the square outside a rounded corner', () => {
+    expect(sweptCircleRectOverlap(-3, -1.9, -1.9, -1.9, 2, 0, 0, 10, 10)).toBe(false);
+  });
+
+  it('detects a tangent to a rounded corner', () => {
+    expect(sweptCircleRectOverlap(-3, -2, 1, -2, 2, 0, 0, 10, 10)).toBe(true);
+  });
+
+  it('detects a rounded-corner hit in reverse', () => {
+    expect(sweptCircleRectOverlap(-1, -1, -3, -3, 2, 0, 0, 10, 10)).toBe(true);
+  });
+
+  it('rejects a stationary circle outside a rounded corner', () => {
+    expect(sweptCircleRectOverlap(-1.9, -1.9, -1.9, -1.9, 2, 0, 0, 10, 10)).toBe(false);
+  });
 });

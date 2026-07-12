@@ -259,11 +259,17 @@ vi.mock('../../src/objects/FragBomb', () => {
     ownerId!: number;
     active = true;
     radius = 6;
+    previousX!: number;
+    previousY!: number;
     destroy = vi.fn(() => { this.active = false; });
     constructor(_scene: any, x: number, y: number, vx: number, vy: number, ownerId: number) {
       Object.assign(this, { x, y, vx, vy, ownerId });
+      this.previousX = x;
+      this.previousY = y;
     }
     update(dt: number) {
+      this.previousX = this.x;
+      this.previousY = this.y;
       this.x += this.vx * dt;
       this.y += this.vy * dt;
       this.age += dt;
@@ -933,7 +939,7 @@ describe('GameScene', () => {
     (scene as any).handleWeaponInput(owner, { shoot: true, usePowerUp: false }, 0);
     if (trigger === 'wall') {
       (scene as any).wallData = [{ x: 0, y: 0, width: 10, height: 10, orientation: 'vertical' }];
-      vi.mocked(circleRectOverlap).mockReturnValueOnce(true).mockReturnValue(false);
+      vi.mocked(sweptCircleRectOverlap).mockReturnValueOnce(true).mockReturnValue(false);
     } else if (trigger === 'tank') {
       vi.mocked(circleCircleOverlap).mockReturnValueOnce(true).mockReturnValue(false);
     } else {
@@ -979,6 +985,29 @@ describe('GameScene', () => {
     expect(fragment.x).toBe(96);
     expect(fragment.active).toBe(false);
     expect((scene as any).fragFragments).toEqual([]);
+  });
+
+  it('detonates a wall-crossing bomb outside the wall so only wallward fragments are destroyed next frame', async () => {
+    const actualCollision = await vi.importActual<typeof import('../../src/systems/Collision')>('../../src/systems/Collision');
+    vi.mocked(sweptCircleRectOverlap).mockImplementation(actualCollision.sweptCircleRectOverlap);
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const bombModule = await vi.importMock<typeof import('../../src/objects/FragBomb')>('../../src/objects/FragBomb');
+    const bomb = new bombModule.FragBomb(scene as any, 70, 50, 320, 0, 0);
+    (scene as any).fragBombs = [bomb];
+    (scene as any).wallData = [{ x: 83, y: 0, width: 10, height: 100, orientation: 'vertical' }];
+
+    (scene as any).updateFragBombs(MAX_DT, new Set());
+
+    expect(bomb.active).toBe(false);
+    expect((scene as any).fragFragments.every((fragment: any) => fragment.x === 70 && fragment.y === 50)).toBe(true);
+
+    (scene as any).updateFragBombs(MAX_DT, new Set());
+
+    const outward = (scene as any).fragFragments.find((fragment: any) => fragment.vx < -300 && Math.abs(fragment.vy) < 0.001);
+    const wallward = (scene as any).fragFragments.find((fragment: any) => fragment.vx > 300 && Math.abs(fragment.vy) < 0.001);
+    expect(outward?.active).toBe(true);
+    expect(wallward).toBeUndefined();
   });
 
   it('destroys a Frag Bomb fragment that leaves the arena bounds', async () => {

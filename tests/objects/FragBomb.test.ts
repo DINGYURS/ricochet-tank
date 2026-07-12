@@ -22,6 +22,8 @@ describe('FragBomb', () => {
     const { scene, circles } = createScene();
     const bomb = new FragBomb(scene, 0, 0, 100, 0, 2);
     bomb.update(0.5);
+    expect(bomb.previousX).toBe(0);
+    expect(bomb.previousY).toBe(0);
     expect(bomb.x).toBe(50);
     expect(bomb.age).toBe(0.5);
     expect(circles[0].setPosition).toHaveBeenCalledWith(50, 0);

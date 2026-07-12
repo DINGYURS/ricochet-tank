@@ -549,20 +549,30 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateFragBombs(dt: number, eliminatedThisFrame: Set<number>): void {
+    const fragmentsAtFrameStart = [...this.fragFragments];
     for (const bomb of this.fragBombs) {
       if (!bomb.active) continue;
       bomb.update(dt);
-      const hitWall = this.wallData.some(wall =>
-        circleRectOverlap(bomb.x, bomb.y, FRAG_BOMB_RADIUS, wall.x, wall.y, wall.width, wall.height));
+      const hitWall = this.wallData.find(wall =>
+        sweptCircleRectOverlap(bomb.previousX, bomb.previousY, bomb.x, bomb.y,
+          FRAG_BOMB_RADIUS, wall.x, wall.y, wall.width, wall.height));
       const hitTank = this.tanks.some(tank => tank.alive &&
         circleCircleOverlap(bomb.x, bomb.y, FRAG_BOMB_RADIUS, tank.x, tank.y, tank.radius));
-      if (shouldDetonateFragBomb({ manualTrigger: false, collision: hitWall || hitTank, age: bomb.age }, FRAG_BOMB_MAX_LIFETIME)) {
+      if (shouldDetonateFragBomb({ manualTrigger: false, collision: Boolean(hitWall) || hitTank, age: bomb.age }, FRAG_BOMB_MAX_LIFETIME)) {
+        if (hitWall) {
+          const safePosition = separateCircleFromRect(
+            bomb.previousX, bomb.previousY, FRAG_BOMB_RADIUS,
+            hitWall.x, hitWall.y, hitWall.width, hitWall.height,
+          );
+          bomb.x = safePosition.x;
+          bomb.y = safePosition.y;
+        }
         this.detonateFragBomb(bomb);
       }
     }
     this.fragBombs = this.fragBombs.filter(bomb => bomb.active);
 
-    for (const fragment of this.fragFragments) {
+    for (const fragment of fragmentsAtFrameStart) {
       if (!fragment.active) continue;
       const previousX = fragment.x;
       const previousY = fragment.y;

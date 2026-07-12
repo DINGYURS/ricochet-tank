@@ -51,30 +51,49 @@ export function sweptCircleRectOverlap(
   radius: number,
   rectX: number, rectY: number, rectWidth: number, rectHeight: number,
 ): boolean {
-  const minX = rectX - radius;
-  const maxX = rectX + rectWidth + radius;
-  const minY = rectY - radius;
-  const maxY = rectY + rectHeight + radius;
   const dx = endX - startX;
   const dy = endY - startY;
-  let enter = 0;
-  let exit = 1;
 
-  for (const [start, delta, min, max] of [
-    [startX, dx, minX, maxX],
-    [startY, dy, minY, maxY],
-  ]) {
-    if (delta === 0) {
-      if (start < min || start > max) return false;
-      continue;
+  const segmentIntersectsRect = (minX: number, minY: number, maxX: number, maxY: number): boolean => {
+    let enter = 0;
+    let exit = 1;
+    for (const [start, delta, min, max] of [
+      [startX, dx, minX, maxX],
+      [startY, dy, minY, maxY],
+    ]) {
+      if (delta === 0) {
+        if (start < min || start > max) return false;
+        continue;
+      }
+      const t1 = (min - start) / delta;
+      const t2 = (max - start) / delta;
+      enter = Math.max(enter, Math.min(t1, t2));
+      exit = Math.min(exit, Math.max(t1, t2));
+      if (enter > exit) return false;
     }
-    const t1 = (min - start) / delta;
-    const t2 = (max - start) / delta;
-    enter = Math.max(enter, Math.min(t1, t2));
-    exit = Math.min(exit, Math.max(t1, t2));
-    if (enter > exit) return false;
+    return true;
+  };
+
+  if (segmentIntersectsRect(rectX, rectY - radius, rectX + rectWidth, rectY + rectHeight + radius) ||
+      segmentIntersectsRect(rectX - radius, rectY, rectX + rectWidth + radius, rectY + rectHeight)) {
+    return true;
   }
-  return true;
+
+  const segmentTouchesPoint = (pointX: number, pointY: number): boolean => {
+    const lengthSq = dx * dx + dy * dy;
+    const projection = lengthSq === 0 ? 0 : ((pointX - startX) * dx + (pointY - startY) * dy) / lengthSq;
+    const t = Math.max(0, Math.min(1, projection));
+    const closestX = startX + dx * t;
+    const closestY = startY + dy * t;
+    const offsetX = closestX - pointX;
+    const offsetY = closestY - pointY;
+    return offsetX * offsetX + offsetY * offsetY <= radius * radius;
+  };
+
+  return segmentTouchesPoint(rectX, rectY) ||
+    segmentTouchesPoint(rectX + rectWidth, rectY) ||
+    segmentTouchesPoint(rectX, rectY + rectHeight) ||
+    segmentTouchesPoint(rectX + rectWidth, rectY + rectHeight);
 }
 
 export { circleRectOverlap, circleCircleOverlap };

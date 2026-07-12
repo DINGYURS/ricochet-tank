@@ -7,6 +7,8 @@ export class FragBomb {
   y: number;
   vx: number;
   vy: number;
+  previousX: number;
+  previousY: number;
   age = 0;
   ownerId: number;
   active = true;
@@ -19,11 +21,15 @@ export class FragBomb {
     this.y = y;
     this.vx = vx;
     this.vy = vy;
+    this.previousX = x;
+    this.previousY = y;
     this.ownerId = ownerId;
     this.graphics = scene.add.circle(x, y, this.radius, 0xffcc33);
   }
 
   update(dt: number): void {
+    this.previousX = this.x;
+    this.previousY = this.y;
     const next = advanceFragBomb(this, dt);
     this.x = next.x;
     this.y = next.y;
