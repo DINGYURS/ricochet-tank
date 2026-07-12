@@ -10,7 +10,7 @@ import {
   ROCKET_TURN_SPEED, LASER_LIFETIME, POWERUP_RADIUS,
   DEATH_RAY_CHARGE_DURATION, DEATH_RAY_BEAM_LIFETIME,
   RC_MISSILE_SPEED,
-  FRAG_BOMB_SPEED, FRAG_BOMB_RADIUS, FRAG_BOMB_MAX_LIFETIME,
+  FRAG_BOMB_SPEED, FRAG_BOMB_RADIUS, FRAG_BOMB_LAUNCH_CLEARANCE, FRAG_BOMB_MAX_LIFETIME,
   FRAG_BOMB_FRAGMENT_COUNT, FRAG_BOMB_FRAGMENT_SPEED,
   DEFAULT_GAME_SETTINGS,
   DEBUG_AI_PATHS,
@@ -39,7 +39,7 @@ import { resolveWeaponAction, type WeaponAction } from '../systems/WeaponInputRe
 import { advanceDeathRayCharge, traceDeathRay, type DeathRayChargeState, type Point } from '../systems/DeathRay';
 import { RCMissile } from '../objects/RCMissile';
 import { FragBomb, FragFragment } from '../objects/FragBomb';
-import { createFragmentVelocities, shouldDetonateFragBomb } from '../systems/FragBombPhysics';
+import { createFragmentVelocities, resolveFragBombLaunch, shouldDetonateFragBomb } from '../systems/FragBombPhysics';
 
 enum RoundState {
   GENERATING = 'GENERATING',
@@ -1003,17 +1003,25 @@ export class GameScene extends Phaser.Scene {
         break;
       }
       case PowerUpType.FragBomb: {
-        const launchDistance = tank.radius + FRAG_BOMB_RADIUS + 1;
-        const origin = {
-          x: tank.x + Math.cos(tank.rotation) * launchDistance,
-          y: tank.y + Math.sin(tank.rotation) * launchDistance,
-        };
+        const direction = { x: Math.cos(tank.rotation), y: Math.sin(tank.rotation) };
+        const origin = resolveFragBombLaunch(
+          tank,
+          direction,
+          tank.radius,
+          FRAG_BOMB_RADIUS,
+          FRAG_BOMB_LAUNCH_CLEARANCE,
+          this.wallData,
+        );
+        if (origin === null) {
+          tank.heldPowerUp = PowerUpType.FragBomb;
+          return;
+        }
         this.fragBombs.push(new FragBomb(
           this,
           origin.x,
           origin.y,
-          Math.cos(tank.rotation) * FRAG_BOMB_SPEED,
-          Math.sin(tank.rotation) * FRAG_BOMB_SPEED,
+          direction.x * FRAG_BOMB_SPEED,
+          direction.y * FRAG_BOMB_SPEED,
           tank.playerId,
         ));
         break;

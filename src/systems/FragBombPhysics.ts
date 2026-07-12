@@ -1,3 +1,10 @@
+import { sweptCircleRectTOI } from './Collision';
+
+export interface Point {
+  x: number;
+  y: number;
+}
+
 export interface FragBombState {
   x: number;
   y: number;
@@ -11,6 +18,49 @@ export interface FragBombTriggerState {
   manualTrigger: boolean;
   collision: boolean;
   age: number;
+}
+
+export function resolveFragBombLaunch(
+  owner: Point,
+  direction: Point,
+  ownerRadius: number,
+  bombRadius: number,
+  desiredClearance: number,
+  walls: Array<{ x: number; y: number; width: number; height: number }>,
+): Point | null {
+  const directionLength = Math.hypot(direction.x, direction.y);
+  if (directionLength === 0) return null;
+
+  const unitX = direction.x / directionLength;
+  const unitY = direction.y / directionLength;
+  const minimumDistance = ownerRadius + bombRadius + 1;
+  const desiredDistance = minimumDistance + desiredClearance;
+  const start = {
+    x: owner.x + unitX * minimumDistance,
+    y: owner.y + unitY * minimumDistance,
+  };
+  const desired = {
+    x: owner.x + unitX * desiredDistance,
+    y: owner.y + unitY * desiredDistance,
+  };
+
+  let earliestTOI: number | null = null;
+  for (const wall of walls) {
+    const toi = sweptCircleRectTOI(
+      start.x, start.y, desired.x, desired.y, bombRadius,
+      wall.x, wall.y, wall.width, wall.height,
+    );
+    if (toi !== null && (earliestTOI === null || toi < earliestTOI)) earliestTOI = toi;
+  }
+
+  const launchDistance = earliestTOI === null
+    ? desiredDistance
+    : minimumDistance + desiredClearance * earliestTOI - 1;
+  if (launchDistance < minimumDistance) return null;
+  return {
+    x: owner.x + unitX * launchDistance,
+    y: owner.y + unitY * launchDistance,
+  };
 }
 
 export function advanceFragBomb(state: FragBombState, dt: number): FragBombState {

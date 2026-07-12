@@ -56,6 +56,7 @@ export const RC_MISSILE_MAX_BOUNCES = 8;
 export const RC_MISSILE_OWNER_SAFE_PERIOD = 0.25;
 export const FRAG_BOMB_SPEED = 200;
 export const FRAG_BOMB_RADIUS = 6;
+export const FRAG_BOMB_LAUNCH_CLEARANCE = 8;
 export const FRAG_BOMB_MAX_LIFETIME = 4;
 export const FRAG_BOMB_FRAGMENT_COUNT = 12;
 export const FRAG_BOMB_FRAGMENT_SPEED = 320;

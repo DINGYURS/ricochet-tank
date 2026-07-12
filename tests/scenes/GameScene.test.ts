@@ -901,6 +901,54 @@ describe('GameScene', () => {
     expect((scene as any).fragFragments).toHaveLength(12);
   });
 
+  it('shortens a Frag Bomb launch to a real legal point before a wall', async () => {
+    const actualMath = await vi.importActual<typeof import('../../src/utils/math')>('../../src/utils/math');
+    const actualCollision = await vi.importActual<typeof import('../../src/systems/Collision')>('../../src/systems/Collision');
+    vi.mocked(sweptCircleRectTOI).mockImplementation(actualCollision.sweptCircleRectTOI);
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const owner = (scene as any).tanks[0];
+    owner.rotation = 0;
+    owner.heldPowerUp = 'FragBomb';
+    const wall = { x: owner.x + 32, y: owner.y - 20, width: 10, height: 40, orientation: 'vertical' };
+    (scene as any).wallData = [wall];
+
+    (scene as any).handleWeaponInput(owner, { shoot: true, usePowerUp: false }, 0);
+
+    const bomb = (scene as any).fragBombs[0];
+    expect(bomb.x).toBe(owner.x + 25);
+    expect(actualMath.circleCircleOverlap(bomb.x, bomb.y, FRAG_BOMB_RADIUS, owner.x, owner.y, owner.radius)).toBe(false);
+    expect(actualMath.circleRectOverlap(bomb.x, bomb.y, FRAG_BOMB_RADIUS, wall.x, wall.y, wall.width, wall.height)).toBe(false);
+  });
+
+  it('retains a Frag Bomb when a wall touching the owner prevents a legal launch', async () => {
+    const actualCollision = await vi.importActual<typeof import('../../src/systems/Collision')>('../../src/systems/Collision');
+    vi.mocked(sweptCircleRectTOI).mockImplementation(actualCollision.sweptCircleRectTOI);
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const owner = (scene as any).tanks[0];
+    owner.rotation = 0;
+    owner.heldPowerUp = null;
+    (scene as any).wallData = [{
+      x: owner.x + owner.radius,
+      y: owner.y - 20,
+      width: 10,
+      height: 40,
+      orientation: 'vertical',
+    }];
+    const shootSound = vi.spyOn((scene as any).soundManager, 'shoot');
+    const rocketSound = vi.spyOn((scene as any).soundManager, 'rocketFire');
+    const explosionSound = vi.spyOn((scene as any).soundManager, 'explosion');
+
+    (scene as any).executeWeaponAction(owner, 'active', 0, 'FragBomb');
+
+    expect((scene as any).fragBombs).toEqual([]);
+    expect(owner.heldPowerUp).toBe('FragBomb');
+    expect(shootSound).not.toHaveBeenCalled();
+    expect(rocketSound).not.toHaveBeenCalled();
+    expect(explosionSound).not.toHaveBeenCalled();
+  });
+
   it('detonates the active Frag Bomb on second primary input without firing a bullet', () => {
     const scene = new GameScene();
     (scene as any).create({ mode: 'local', localPlayers: 2 });
