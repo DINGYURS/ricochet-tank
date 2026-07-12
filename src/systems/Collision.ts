@@ -45,55 +45,74 @@ export function separateCircleFromRect(
   };
 }
 
-export function sweptCircleRectOverlap(
+export function segmentCircleTOI(
+  startX: number, startY: number, endX: number, endY: number,
+  circleX: number, circleY: number, radius: number,
+): number | null {
+  const dx = endX - startX;
+  const dy = endY - startY;
+  const offsetX = startX - circleX;
+  const offsetY = startY - circleY;
+  const c = offsetX * offsetX + offsetY * offsetY - radius * radius;
+  if (c <= 0) return 0;
+  const a = dx * dx + dy * dy;
+  if (a === 0) return null;
+  const b = 2 * (offsetX * dx + offsetY * dy);
+  const discriminant = b * b - 4 * a * c;
+  if (discriminant < 0) return null;
+  const t = (-b - Math.sqrt(Math.max(0, discriminant))) / (2 * a);
+  return t >= 0 && t <= 1 ? t : null;
+}
+
+export function sweptCircleCircleTOI(
+  startX: number, startY: number, endX: number, endY: number, movingRadius: number,
+  circleX: number, circleY: number, circleRadius: number,
+): number | null {
+  return segmentCircleTOI(startX, startY, endX, endY, circleX, circleY, movingRadius + circleRadius);
+}
+
+export function sweptCircleRectTOI(
   startX: number, startY: number,
   endX: number, endY: number,
   radius: number,
   rectX: number, rectY: number, rectWidth: number, rectHeight: number,
-): boolean {
+): number | null {
   const dx = endX - startX;
   const dy = endY - startY;
+  if (circleRectOverlap(startX, startY, radius, rectX, rectY, rectWidth, rectHeight)) return 0;
 
-  const segmentIntersectsRect = (minX: number, minY: number, maxX: number, maxY: number): boolean => {
-    let enter = 0;
-    let exit = 1;
-    for (const [start, delta, min, max] of [
-      [startX, dx, minX, maxX],
-      [startY, dy, minY, maxY],
-    ]) {
-      if (delta === 0) {
-        if (start < min || start > max) return false;
-        continue;
-      }
-      const t1 = (min - start) / delta;
-      const t2 = (max - start) / delta;
-      enter = Math.max(enter, Math.min(t1, t2));
-      exit = Math.min(exit, Math.max(t1, t2));
-      if (enter > exit) return false;
-    }
-    return true;
+  const candidates: number[] = [];
+  const addSide = (t: number, orthogonal: number, min: number, max: number): void => {
+    if (t >= 0 && t <= 1 && orthogonal >= min && orthogonal <= max) candidates.push(t);
   };
-
-  if (segmentIntersectsRect(rectX, rectY - radius, rectX + rectWidth, rectY + rectHeight + radius) ||
-      segmentIntersectsRect(rectX - radius, rectY, rectX + rectWidth + radius, rectY + rectHeight)) {
-    return true;
+  if (dx !== 0) {
+    let t = (rectX - radius - startX) / dx;
+    addSide(t, startY + dy * t, rectY, rectY + rectHeight);
+    t = (rectX + rectWidth + radius - startX) / dx;
+    addSide(t, startY + dy * t, rectY, rectY + rectHeight);
   }
+  if (dy !== 0) {
+    let t = (rectY - radius - startY) / dy;
+    addSide(t, startX + dx * t, rectX, rectX + rectWidth);
+    t = (rectY + rectHeight + radius - startY) / dy;
+    addSide(t, startX + dx * t, rectX, rectX + rectWidth);
+  }
+  for (const [cornerX, cornerY] of [
+    [rectX, rectY], [rectX + rectWidth, rectY],
+    [rectX, rectY + rectHeight], [rectX + rectWidth, rectY + rectHeight],
+  ]) {
+    const t = segmentCircleTOI(startX, startY, endX, endY, cornerX, cornerY, radius);
+    if (t !== null) candidates.push(t);
+  }
+  return candidates.length > 0 ? Math.min(...candidates) : null;
+}
 
-  const segmentTouchesPoint = (pointX: number, pointY: number): boolean => {
-    const lengthSq = dx * dx + dy * dy;
-    const projection = lengthSq === 0 ? 0 : ((pointX - startX) * dx + (pointY - startY) * dy) / lengthSq;
-    const t = Math.max(0, Math.min(1, projection));
-    const closestX = startX + dx * t;
-    const closestY = startY + dy * t;
-    const offsetX = closestX - pointX;
-    const offsetY = closestY - pointY;
-    return offsetX * offsetX + offsetY * offsetY <= radius * radius;
-  };
-
-  return segmentTouchesPoint(rectX, rectY) ||
-    segmentTouchesPoint(rectX + rectWidth, rectY) ||
-    segmentTouchesPoint(rectX, rectY + rectHeight) ||
-    segmentTouchesPoint(rectX + rectWidth, rectY + rectHeight);
+export function sweptCircleRectOverlap(
+  startX: number, startY: number, endX: number, endY: number,
+  radius: number,
+  rectX: number, rectY: number, rectWidth: number, rectHeight: number,
+): boolean {
+  return sweptCircleRectTOI(startX, startY, endX, endY, radius, rectX, rectY, rectWidth, rectHeight) !== null;
 }
 
 export { circleRectOverlap, circleCircleOverlap };

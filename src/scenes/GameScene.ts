@@ -18,7 +18,10 @@ import {
 } from '../config';
 import { InputManager, type PlayerInput } from '../systems/InputManager';
 import { generateMaze } from '../systems/MazeGenerator';
-import { separateCircleFromRect, circleCircleOverlap, circleRectOverlap, sweptCircleRectOverlap } from '../systems/Collision';
+import {
+  separateCircleFromRect, circleCircleOverlap, circleRectOverlap, sweptCircleRectOverlap,
+  sweptCircleCircleTOI, sweptCircleRectTOI,
+} from '../systems/Collision';
 import { reflect } from '../utils/math';
 import { SoundManager } from '../systems/SoundManager';
 import { Wall } from '../objects/Wall';
@@ -553,19 +556,29 @@ export class GameScene extends Phaser.Scene {
     for (const bomb of this.fragBombs) {
       if (!bomb.active) continue;
       bomb.update(dt);
-      const hitWall = this.wallData.find(wall =>
-        sweptCircleRectOverlap(bomb.previousX, bomb.previousY, bomb.x, bomb.y,
-          FRAG_BOMB_RADIUS, wall.x, wall.y, wall.width, wall.height));
-      const hitTank = this.tanks.some(tank => tank.alive &&
-        circleCircleOverlap(bomb.x, bomb.y, FRAG_BOMB_RADIUS, tank.x, tank.y, tank.radius));
-      if (shouldDetonateFragBomb({ manualTrigger: false, collision: Boolean(hitWall) || hitTank, age: bomb.age }, FRAG_BOMB_MAX_LIFETIME)) {
-        if (hitWall) {
-          const safePosition = separateCircleFromRect(
-            bomb.previousX, bomb.previousY, FRAG_BOMB_RADIUS,
-            hitWall.x, hitWall.y, hitWall.width, hitWall.height,
-          );
-          bomb.x = safePosition.x;
-          bomb.y = safePosition.y;
+      let wallHit: { toi: number } | null = null;
+      for (const wall of this.wallData) {
+        const toi = sweptCircleRectTOI(bomb.previousX, bomb.previousY, bomb.x, bomb.y,
+          FRAG_BOMB_RADIUS, wall.x, wall.y, wall.width, wall.height);
+        if (toi !== null && (wallHit === null || toi < wallHit.toi)) wallHit = { toi };
+      }
+      let tankHit: { toi: number } | null = null;
+      for (const tank of this.tanks) {
+        if (!tank.alive) continue;
+        const toi = sweptCircleCircleTOI(bomb.previousX, bomb.previousY, bomb.x, bomb.y,
+          FRAG_BOMB_RADIUS, tank.x, tank.y, tank.radius);
+        if (toi !== null && (tankHit === null || toi < tankHit.toi)) tankHit = { toi };
+      }
+      const tankFirst = tankHit !== null && (wallHit === null || tankHit.toi <= wallHit.toi);
+      const collisionTOI = tankFirst ? tankHit!.toi : wallHit?.toi ?? null;
+      if (shouldDetonateFragBomb({ manualTrigger: false, collision: collisionTOI !== null, age: bomb.age }, FRAG_BOMB_MAX_LIFETIME)) {
+        if (collisionTOI !== null) {
+          const dx = bomb.x - bomb.previousX;
+          const dy = bomb.y - bomb.previousY;
+          const pathLength = Math.hypot(dx, dy);
+          const t = tankFirst ? collisionTOI : Math.max(0, collisionTOI - (pathLength === 0 ? 0 : 0.001 / pathLength));
+          bomb.x = bomb.previousX + dx * t;
+          bomb.y = bomb.previousY + dy * t;
         }
         this.detonateFragBomb(bomb);
       }
@@ -577,16 +590,27 @@ export class GameScene extends Phaser.Scene {
       const previousX = fragment.x;
       const previousY = fragment.y;
       fragment.update(dt);
-      const hitWall = this.wallData.some(wall =>
-        sweptCircleRectOverlap(previousX, previousY, fragment.x, fragment.y, 2, wall.x, wall.y, wall.width, wall.height));
+      let wallTOI: number | null = null;
+      for (const wall of this.wallData) {
+        const toi = sweptCircleRectTOI(previousX, previousY, fragment.x, fragment.y, 2,
+          wall.x, wall.y, wall.width, wall.height);
+        if (toi !== null && (wallTOI === null || toi < wallTOI)) wallTOI = toi;
+      }
+      let tankHit: { tank: Tank; toi: number } | null = null;
+      for (const tank of this.tanks) {
+        if (!tank.alive) continue;
+        const toi = sweptCircleCircleTOI(previousX, previousY, fragment.x, fragment.y, 2,
+          tank.x, tank.y, tank.radius);
+        if (toi !== null && (tankHit === null || toi < tankHit.toi)) tankHit = { tank, toi };
+      }
+      const tankFirst = tankHit !== null && (wallTOI === null || tankHit.toi <= wallTOI);
       const outOfBounds = fragment.x < 0 || fragment.x > GAME_WIDTH || fragment.y < 0 || fragment.y > GAME_HEIGHT;
-      if (hitWall || outOfBounds) {
+      if (!tankFirst && (wallTOI !== null || outOfBounds)) {
         fragment.destroy();
         continue;
       }
-      for (const tank of this.tanks) {
-        if (!tank.alive) continue;
-        if (!circleCircleOverlap(fragment.x, fragment.y, 2, tank.x, tank.y, tank.radius)) continue;
+      if (tankFirst) {
+        const tank = tankHit!.tank;
         if (tank.shieldActive) {
           tank.shieldActive = false;
           tank.passiveEffects.delete(PowerUpType.Shield);
@@ -596,7 +620,6 @@ export class GameScene extends Phaser.Scene {
           eliminatedThisFrame.add(tank.playerId);
         }
         fragment.destroy();
-        break;
       }
     }
     this.fragFragments = this.fragFragments.filter(fragment => fragment.active);
