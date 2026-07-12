@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { advanceFragBomb } from '../systems/FragBombPhysics';
+import { FRAG_BOMB_RADIUS } from '../config';
 
 export class FragBomb {
   x: number;
@@ -9,6 +10,7 @@ export class FragBomb {
   age = 0;
   ownerId: number;
   active = true;
+  readonly radius = FRAG_BOMB_RADIUS;
 
   private graphics: Phaser.GameObjects.Arc;
 
@@ -18,7 +20,7 @@ export class FragBomb {
     this.vx = vx;
     this.vy = vy;
     this.ownerId = ownerId;
-    this.graphics = scene.add.circle(x, y, 6, 0xffcc33);
+    this.graphics = scene.add.circle(x, y, this.radius, 0xffcc33);
   }
 
   update(dt: number): void {

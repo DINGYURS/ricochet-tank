@@ -99,6 +99,7 @@ vi.mock('../../src/systems/Collision', () => ({
   separateCircleFromRect: vi.fn((x: number, y: number) => ({ x, y })),
   circleCircleOverlap: vi.fn(() => false),
   circleRectOverlap: vi.fn(() => false),
+  sweptCircleRectOverlap: vi.fn(() => false),
 }));
 
 vi.mock('../../src/utils/math', () => ({
@@ -301,9 +302,10 @@ vi.mock('../../src/systems/AIController', () => {
 
 // Now import after all mocks are set up
 import { GameScene } from '../../src/scenes/GameScene';
-import { DEFAULT_GAME_SETTINGS, type GameSettings } from '../../src/config';
+import { DEFAULT_GAME_SETTINGS, FRAG_BOMB_RADIUS, MAX_DT, type GameSettings } from '../../src/config';
 import { circleCircleOverlap } from '../../src/systems/Collision';
 import { circleRectOverlap } from '../../src/systems/Collision';
+import { sweptCircleRectOverlap } from '../../src/systems/Collision';
 
 beforeEach(() => {
   mockEscapePressed.value = false;
@@ -325,6 +327,7 @@ beforeEach(() => {
   });
   vi.mocked(circleCircleOverlap).mockReturnValue(false);
   vi.mocked(circleRectOverlap).mockReturnValue(false);
+  vi.mocked(sweptCircleRectOverlap).mockReturnValue(false);
 });
 
 describe('GameScene', () => {
@@ -863,6 +866,28 @@ describe('GameScene', () => {
     }
   });
 
+  it('launches a Frag Bomb clear of its owner while preserving return self-damage', async () => {
+    const actualMath = await vi.importActual<typeof import('../../src/utils/math')>('../../src/utils/math');
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const owner = (scene as any).tanks[0];
+    owner.heldPowerUp = 'FragBomb';
+    (scene as any).handleWeaponInput(owner, { shoot: true, usePowerUp: false }, 0);
+    const bomb = (scene as any).fragBombs[0];
+
+    expect(actualMath.circleCircleOverlap(bomb.x, bomb.y, FRAG_BOMB_RADIUS, owner.x, owner.y, owner.radius)).toBe(false);
+    bomb.update(0.016);
+    expect(actualMath.circleCircleOverlap(bomb.x, bomb.y, FRAG_BOMB_RADIUS, owner.x, owner.y, owner.radius)).toBe(false);
+
+    bomb.x = owner.x + owner.radius + FRAG_BOMB_RADIUS - 0.1;
+    bomb.y = owner.y;
+    vi.mocked(circleCircleOverlap).mockImplementation(actualMath.circleCircleOverlap);
+    (scene as any).updateFragBombs(0, new Set());
+
+    expect(bomb.active).toBe(false);
+    expect((scene as any).fragFragments).toHaveLength(12);
+  });
+
   it('detonates the active Frag Bomb on second primary input without firing a bullet', () => {
     const scene = new GameScene();
     (scene as any).create({ mode: 'local', localPlayers: 2 });
@@ -930,12 +955,43 @@ describe('GameScene', () => {
     (scene as any).detonateFragBomb((scene as any).fragBombs[0]);
     const fragment = (scene as any).fragFragments[0];
     (scene as any).wallData = [{ x: 0, y: 0, width: 10, height: 10, orientation: 'vertical' }];
-    vi.mocked(circleRectOverlap).mockReturnValue(true);
+    vi.mocked(sweptCircleRectOverlap).mockReturnValue(true);
 
     (scene as any).updateFragBombs(0, new Set());
 
     expect(fragment.destroy).toHaveBeenCalledOnce();
     expect((scene as any).fragFragments).not.toContain(fragment);
+  });
+
+  it('sweeps a fragment across a thin wall at MAX_DT without tunneling', async () => {
+    const actualCollision = await vi.importActual<typeof import('../../src/systems/Collision')>('../../src/systems/Collision');
+    vi.mocked(sweptCircleRectOverlap).mockImplementation(actualCollision.sweptCircleRectOverlap);
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const fragment = new (await vi.importMock<typeof import('../../src/objects/FragBomb')>('../../src/objects/FragBomb')).FragFragment(
+      scene as any, 80, 50, 320, 0, 0,
+    );
+    (scene as any).fragFragments = [fragment];
+    (scene as any).wallData = [{ x: 83, y: 0, width: 10, height: 100, orientation: 'vertical' }];
+
+    (scene as any).updateFragBombs(MAX_DT, new Set());
+
+    expect(fragment.x).toBe(96);
+    expect(fragment.active).toBe(false);
+    expect((scene as any).fragFragments).toEqual([]);
+  });
+
+  it('destroys a Frag Bomb fragment that leaves the arena bounds', async () => {
+    const fragmentModule = await vi.importMock<typeof import('../../src/objects/FragBomb')>('../../src/objects/FragBomb');
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const fragment = new fragmentModule.FragFragment(scene as any, 799, 300, 320, 0, 0);
+    (scene as any).fragFragments = [fragment];
+
+    (scene as any).updateFragBombs(MAX_DT, new Set());
+
+    expect(fragment.active).toBe(false);
+    expect((scene as any).fragFragments).toEqual([]);
   });
 
   it('lets Frag Bomb fragments damage the owner and consume shields', () => {

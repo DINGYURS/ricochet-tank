@@ -10,7 +10,7 @@ import {
   ROCKET_TURN_SPEED, LASER_LIFETIME, POWERUP_RADIUS,
   DEATH_RAY_CHARGE_DURATION, DEATH_RAY_BEAM_LIFETIME,
   RC_MISSILE_SPEED,
-  FRAG_BOMB_SPEED, FRAG_BOMB_MAX_LIFETIME,
+  FRAG_BOMB_SPEED, FRAG_BOMB_RADIUS, FRAG_BOMB_MAX_LIFETIME,
   FRAG_BOMB_FRAGMENT_COUNT, FRAG_BOMB_FRAGMENT_SPEED,
   DEFAULT_GAME_SETTINGS,
   DEBUG_AI_PATHS,
@@ -18,7 +18,7 @@ import {
 } from '../config';
 import { InputManager, type PlayerInput } from '../systems/InputManager';
 import { generateMaze } from '../systems/MazeGenerator';
-import { separateCircleFromRect, circleCircleOverlap, circleRectOverlap } from '../systems/Collision';
+import { separateCircleFromRect, circleCircleOverlap, circleRectOverlap, sweptCircleRectOverlap } from '../systems/Collision';
 import { reflect } from '../utils/math';
 import { SoundManager } from '../systems/SoundManager';
 import { Wall } from '../objects/Wall';
@@ -553,9 +553,9 @@ export class GameScene extends Phaser.Scene {
       if (!bomb.active) continue;
       bomb.update(dt);
       const hitWall = this.wallData.some(wall =>
-        circleRectOverlap(bomb.x, bomb.y, 6, wall.x, wall.y, wall.width, wall.height));
+        circleRectOverlap(bomb.x, bomb.y, FRAG_BOMB_RADIUS, wall.x, wall.y, wall.width, wall.height));
       const hitTank = this.tanks.some(tank => tank.alive &&
-        circleCircleOverlap(bomb.x, bomb.y, 6, tank.x, tank.y, tank.radius));
+        circleCircleOverlap(bomb.x, bomb.y, FRAG_BOMB_RADIUS, tank.x, tank.y, tank.radius));
       if (shouldDetonateFragBomb({ manualTrigger: false, collision: hitWall || hitTank, age: bomb.age }, FRAG_BOMB_MAX_LIFETIME)) {
         this.detonateFragBomb(bomb);
       }
@@ -564,10 +564,13 @@ export class GameScene extends Phaser.Scene {
 
     for (const fragment of this.fragFragments) {
       if (!fragment.active) continue;
+      const previousX = fragment.x;
+      const previousY = fragment.y;
       fragment.update(dt);
       const hitWall = this.wallData.some(wall =>
-        circleRectOverlap(fragment.x, fragment.y, 2, wall.x, wall.y, wall.width, wall.height));
-      if (hitWall) {
+        sweptCircleRectOverlap(previousX, previousY, fragment.x, fragment.y, 2, wall.x, wall.y, wall.width, wall.height));
+      const outOfBounds = fragment.x < 0 || fragment.x > GAME_WIDTH || fragment.y < 0 || fragment.y > GAME_HEIGHT;
+      if (hitWall || outOfBounds) {
         fragment.destroy();
         continue;
       }
@@ -967,7 +970,11 @@ export class GameScene extends Phaser.Scene {
         break;
       }
       case PowerUpType.FragBomb: {
-        const origin = tank.getBarrelTip();
+        const launchDistance = tank.radius + FRAG_BOMB_RADIUS + 1;
+        const origin = {
+          x: tank.x + Math.cos(tank.rotation) * launchDistance,
+          y: tank.y + Math.sin(tank.rotation) * launchDistance,
+        };
         this.fragBombs.push(new FragBomb(
           this,
           origin.x,

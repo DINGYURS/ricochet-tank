@@ -45,4 +45,36 @@ export function separateCircleFromRect(
   };
 }
 
+export function sweptCircleRectOverlap(
+  startX: number, startY: number,
+  endX: number, endY: number,
+  radius: number,
+  rectX: number, rectY: number, rectWidth: number, rectHeight: number,
+): boolean {
+  const minX = rectX - radius;
+  const maxX = rectX + rectWidth + radius;
+  const minY = rectY - radius;
+  const maxY = rectY + rectHeight + radius;
+  const dx = endX - startX;
+  const dy = endY - startY;
+  let enter = 0;
+  let exit = 1;
+
+  for (const [start, delta, min, max] of [
+    [startX, dx, minX, maxX],
+    [startY, dy, minY, maxY],
+  ]) {
+    if (delta === 0) {
+      if (start < min || start > max) return false;
+      continue;
+    }
+    const t1 = (min - start) / delta;
+    const t2 = (max - start) / delta;
+    enter = Math.max(enter, Math.min(t1, t2));
+    exit = Math.min(exit, Math.max(t1, t2));
+    if (enter > exit) return false;
+  }
+  return true;
+}
+
 export { circleRectOverlap, circleCircleOverlap };
