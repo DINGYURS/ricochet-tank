@@ -3,6 +3,7 @@ import {
   advanceFragBomb,
   createFragmentVelocities,
   resolveFragBombLaunch,
+  selectFragBombEvent,
   shouldDetonateFragBomb,
   type FragBombState,
 } from '../../src/systems/FragBombPhysics';
@@ -31,9 +32,30 @@ describe('resolveFragBombLaunch', () => {
     expect(circleRectOverlap(launch!.x, launch!.y, bombRadius, wall.x, wall.y, wall.width, wall.height)).toBe(false);
   });
 
-  it('returns null when a wall touching the owner leaves no legal launch point', () => {
-    const wall = { x: 116, y: 80, width: 10, height: 40 };
+  it('returns null for a zero direction', () => {
+    expect(resolveFragBombLaunch(owner, { x: 0, y: 0 }, ownerRadius, bombRadius, 8, [])).toBeNull();
+  });
 
+  it('uses the earliest wall independent of wall order', () => {
+    const nearWall = { x: 132, y: 80, width: 10, height: 40 };
+    const farWall = { x: 136, y: 80, width: 10, height: 40 };
+
+    const farFirst = resolveFragBombLaunch(owner, { x: 1, y: 0 }, ownerRadius, bombRadius, 8, [farWall, nearWall]);
+    const nearFirst = resolveFragBombLaunch(owner, { x: 1, y: 0 }, ownerRadius, bombRadius, 8, [nearWall, farWall]);
+
+    expect(farFirst).toEqual({ x: 125, y: 100 });
+    expect(nearFirst).toEqual(farFirst);
+    expect(circleRectOverlap(farFirst!.x, farFirst!.y, bombRadius,
+      nearWall.x, nearWall.y, nearWall.width, nearWall.height)).toBe(false);
+    expect(circleRectOverlap(farFirst!.x, farFirst!.y, bombRadius,
+      farWall.x, farWall.y, farWall.width, farWall.height)).toBe(false);
+  });
+
+  it('returns null when the minimum-distance start overlaps a wall', () => {
+    const wall = { x: 128, y: 80, width: 10, height: 40 };
+    const start = { x: owner.x + ownerRadius + bombRadius + 1, y: owner.y };
+
+    expect(circleRectOverlap(start.x, start.y, bombRadius, wall.x, wall.y, wall.width, wall.height)).toBe(true);
     expect(resolveFragBombLaunch(owner, { x: 1, y: 0 }, ownerRadius, bombRadius, 8, [wall])).toBeNull();
   });
 });
@@ -41,6 +63,23 @@ describe('resolveFragBombLaunch', () => {
 describe('advanceFragBomb', () => {
   it('advances position and age without changing velocity', () => {
     expect(advanceFragBomb(state(), 0.5)).toEqual({ x: 50, y: 25, vx: 100, vy: 50, age: 0.5, active: true });
+  });
+});
+
+describe('selectFragBombEvent', () => {
+  it('selects the tank when tank, wall, and lifetime share the same TOI', () => {
+    expect(selectFragBombEvent(0.2, 0.2, 0.2)).toEqual({ type: 'tank', toi: 0.2 });
+  });
+
+  it('selects lifetime only when it is strictly earlier than a collision', () => {
+    expect(selectFragBombEvent(0.4, 0.3, 0.1)).toEqual({ type: 'lifetime', toi: 0.1 });
+    expect(selectFragBombEvent(null, 0.3, 0.3)).toEqual({ type: 'wall', toi: 0.3 });
+  });
+
+  it('orders tank and wall candidates and returns null without candidates', () => {
+    expect(selectFragBombEvent(0.4, 0.2, null)).toEqual({ type: 'wall', toi: 0.2 });
+    expect(selectFragBombEvent(0.2, 0.4, null)).toEqual({ type: 'tank', toi: 0.2 });
+    expect(selectFragBombEvent(null, null, null)).toBeNull();
   });
 });
 

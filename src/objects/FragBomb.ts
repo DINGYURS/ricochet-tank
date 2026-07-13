@@ -27,6 +27,12 @@ export class FragBomb {
     this.graphics = scene.add.circle(x, y, this.radius, 0xffcc33);
   }
 
+  setPosition(x: number, y: number): void {
+    this.x = x;
+    this.y = y;
+    this.graphics.setPosition(x, y);
+  }
+
   update(dt: number): void {
     this.previousX = this.x;
     this.previousY = this.y;

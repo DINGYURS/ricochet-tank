@@ -29,6 +29,17 @@ describe('FragBomb', () => {
     expect(circles[0].setPosition).toHaveBeenCalledWith(50, 0);
   });
 
+  it('sets model and graphics position together', () => {
+    const { scene, circles } = createScene();
+    const bomb = new FragBomb(scene, 0, 0, 100, 0, 2);
+
+    bomb.setPosition(12, 34);
+
+    expect(bomb.x).toBe(12);
+    expect(bomb.y).toBe(34);
+    expect(circles[0].setPosition).toHaveBeenCalledWith(12, 34);
+  });
+
   it('destroys idempotently', () => {
     const { scene, circles } = createScene();
     const bomb = new FragBomb(scene, 0, 0, 100, 0, 2);

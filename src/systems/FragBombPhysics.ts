@@ -20,6 +20,28 @@ export interface FragBombTriggerState {
   age: number;
 }
 
+export type FragBombEvent = {
+  type: 'tank' | 'wall' | 'lifetime';
+  toi: number;
+};
+
+export function selectFragBombEvent(
+  tankTOI: number | null,
+  wallTOI: number | null,
+  lifetimeTOI: number | null,
+): FragBombEvent | null {
+  const collision: FragBombEvent | null = tankTOI !== null && (wallTOI === null || tankTOI <= wallTOI)
+    ? { type: 'tank', toi: tankTOI }
+    : wallTOI !== null
+      ? { type: 'wall', toi: wallTOI }
+      : null;
+
+  if (lifetimeTOI !== null && (collision === null || lifetimeTOI < collision.toi)) {
+    return { type: 'lifetime', toi: lifetimeTOI };
+  }
+  return collision;
+}
+
 export function resolveFragBombLaunch(
   owner: Point,
   direction: Point,

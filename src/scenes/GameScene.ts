@@ -39,7 +39,7 @@ import { resolveWeaponAction, type WeaponAction } from '../systems/WeaponInputRe
 import { advanceDeathRayCharge, traceDeathRay, type DeathRayChargeState, type Point } from '../systems/DeathRay';
 import { RCMissile } from '../objects/RCMissile';
 import { FragBomb, FragFragment } from '../objects/FragBomb';
-import { createFragmentVelocities, resolveFragBombLaunch, shouldDetonateFragBomb } from '../systems/FragBombPhysics';
+import { createFragmentVelocities, resolveFragBombLaunch, selectFragBombEvent } from '../systems/FragBombPhysics';
 
 enum RoundState {
   GENERATING = 'GENERATING',
@@ -570,25 +570,20 @@ export class GameScene extends Phaser.Scene {
           FRAG_BOMB_RADIUS, tank.x, tank.y, tank.radius);
         if (toi !== null && (tankHit === null || toi < tankHit.toi)) tankHit = { toi };
       }
-      const tankFirst = tankHit !== null && (wallHit === null || tankHit.toi <= wallHit.toi);
-      const collisionTOI = tankFirst ? tankHit!.toi : wallHit?.toi ?? null;
       const lifetimeTOI = ageBeforeUpdate >= FRAG_BOMB_MAX_LIFETIME
         ? 0
         : dt > 0 && bomb.age >= FRAG_BOMB_MAX_LIFETIME
           ? Math.max(0, Math.min(1, (FRAG_BOMB_MAX_LIFETIME - ageBeforeUpdate) / dt))
           : null;
-      const lifetimeFirst = lifetimeTOI !== null && (collisionTOI === null || lifetimeTOI < collisionTOI);
-      const detonationTOI = lifetimeFirst ? lifetimeTOI : collisionTOI;
-      if (shouldDetonateFragBomb({ manualTrigger: false, collision: collisionTOI !== null, age: bomb.age }, FRAG_BOMB_MAX_LIFETIME)) {
-        if (detonationTOI !== null) {
-          const dx = bomb.x - bomb.previousX;
-          const dy = bomb.y - bomb.previousY;
-          const pathLength = Math.hypot(dx, dy);
-          const wallFirst = !lifetimeFirst && !tankFirst;
-          const t = wallFirst ? Math.max(0, detonationTOI - (pathLength === 0 ? 0 : 0.001 / pathLength)) : detonationTOI;
-          bomb.x = bomb.previousX + dx * t;
-          bomb.y = bomb.previousY + dy * t;
-        }
+      const event = selectFragBombEvent(tankHit?.toi ?? null, wallHit?.toi ?? null, lifetimeTOI);
+      if (event !== null) {
+        const dx = bomb.x - bomb.previousX;
+        const dy = bomb.y - bomb.previousY;
+        const pathLength = Math.hypot(dx, dy);
+        const t = event.type === 'wall'
+          ? Math.max(0, event.toi - (pathLength === 0 ? 0 : 0.001 / pathLength))
+          : event.toi;
+        bomb.setPosition(bomb.previousX + dx * t, bomb.previousY + dy * t);
         this.detonateFragBomb(bomb);
       }
     }

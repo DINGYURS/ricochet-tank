@@ -264,6 +264,10 @@ vi.mock('../../src/objects/FragBomb', () => {
     radius = 6;
     previousX!: number;
     previousY!: number;
+    setPosition = vi.fn((x: number, y: number) => {
+      this.x = x;
+      this.y = y;
+    });
     destroy = vi.fn(() => { this.active = false; });
     constructor(_scene: any, x: number, y: number, vx: number, vy: number, ownerId: number) {
       Object.assign(this, { x, y, vx, vy, ownerId });
@@ -921,14 +925,17 @@ describe('GameScene', () => {
     expect(actualMath.circleRectOverlap(bomb.x, bomb.y, FRAG_BOMB_RADIUS, wall.x, wall.y, wall.width, wall.height)).toBe(false);
   });
 
-  it('retains a Frag Bomb when a wall touching the owner prevents a legal launch', async () => {
+  it.each([
+    ['primary shoot', true, false],
+    ['legacy usePowerUp', false, true],
+  ] as const)('retains a Frag Bomb and creates no projectile when launch fails through %s', async (_label, shoot, usePowerUp) => {
     const actualCollision = await vi.importActual<typeof import('../../src/systems/Collision')>('../../src/systems/Collision');
     vi.mocked(sweptCircleRectTOI).mockImplementation(actualCollision.sweptCircleRectTOI);
     const scene = new GameScene();
     (scene as any).create({ mode: 'local', localPlayers: 2 });
     const owner = (scene as any).tanks[0];
     owner.rotation = 0;
-    owner.heldPowerUp = null;
+    owner.heldPowerUp = 'FragBomb';
     (scene as any).wallData = [{
       x: owner.x + owner.radius,
       y: owner.y - 20,
@@ -939,10 +946,15 @@ describe('GameScene', () => {
     const shootSound = vi.spyOn((scene as any).soundManager, 'shoot');
     const rocketSound = vi.spyOn((scene as any).soundManager, 'rocketFire');
     const explosionSound = vi.spyOn((scene as any).soundManager, 'explosion');
+    mockPlayer1Input.shoot = shoot;
+    mockPlayer1Input.usePowerUp = usePowerUp;
+    (scene as any).roundState = 'PLAYING';
 
-    (scene as any).executeWeaponAction(owner, 'active', 0, 'FragBomb');
+    scene.update(0, 16);
 
     expect((scene as any).fragBombs).toEqual([]);
+    expect((scene as any).fragFragments).toEqual([]);
+    expect((scene as any).bullets).toEqual([]);
     expect(owner.heldPowerUp).toBe('FragBomb');
     expect(shootSound).not.toHaveBeenCalled();
     expect(rocketSound).not.toHaveBeenCalled();
@@ -1020,6 +1032,10 @@ describe('GameScene', () => {
     (scene as any).updateFragBombs(0.05, new Set());
 
     expect(bomb.active).toBe(false);
+    const setPosition = vi.mocked(bomb.setPosition);
+    expect(setPosition).toHaveBeenCalledOnce();
+    expect(setPosition.mock.calls[0][0]).toBeCloseTo(11);
+    expect(setPosition.mock.calls[0][1]).toBe(50);
     expect((scene as any).fragFragments).toHaveLength(12);
     expect((scene as any).fragFragments.every((fragment: any) => Math.abs(fragment.x - 11) < 0.000001 && fragment.y === 50)).toBe(true);
   });
@@ -1035,22 +1051,6 @@ describe('GameScene', () => {
     bomb.age = 3.99;
     (scene as any).fragBombs = [bomb];
     (scene as any).wallData = [{ x: 20, y: 0, width: 10, height: 100, orientation: 'vertical' }];
-
-    (scene as any).updateFragBombs(0.05, new Set());
-
-    expect((scene as any).fragFragments[0].x).toBeCloseTo(11);
-  });
-
-  it('keeps tank priority when tank, wall, and lifetime have the same TOI', async () => {
-    const scene = new GameScene();
-    (scene as any).create({ mode: 'local', localPlayers: 2 });
-    const { FragBomb } = await vi.importMock<typeof import('../../src/objects/FragBomb')>('../../src/objects/FragBomb');
-    const bomb = new FragBomb(scene as any, 10, 50, 100, 0, 0);
-    bomb.age = 3.99;
-    (scene as any).fragBombs = [bomb];
-    (scene as any).wallData = [{ x: 0, y: 0, width: 10, height: 10, orientation: 'vertical' }];
-    vi.mocked(sweptCircleRectTOI).mockReturnValueOnce(0.2).mockReturnValue(null);
-    vi.mocked(sweptCircleCircleTOI).mockReturnValueOnce(0.2).mockReturnValue(null);
 
     (scene as any).updateFragBombs(0.05, new Set());
 
