@@ -51,10 +51,6 @@ export function resolveFragBombLaunch(
   const unitY = direction.y / directionLength;
   const minimumDistance = ownerRadius + bombRadius + 1;
   const desiredDistance = minimumDistance + desiredClearance;
-  const start = {
-    x: owner.x + unitX * minimumDistance,
-    y: owner.y + unitY * minimumDistance,
-  };
   const desired = {
     x: owner.x + unitX * desiredDistance,
     y: owner.y + unitY * desiredDistance,
@@ -63,7 +59,7 @@ export function resolveFragBombLaunch(
   let earliestTOI: number | null = null;
   for (const wall of walls) {
     const toi = sweptCircleRectTOI(
-      start.x, start.y, desired.x, desired.y, bombRadius,
+      owner.x, owner.y, desired.x, desired.y, bombRadius,
       wall.x, wall.y, wall.width, wall.height,
     );
     if (toi !== null && (earliestTOI === null || toi < earliestTOI)) earliestTOI = toi;
@@ -71,7 +67,7 @@ export function resolveFragBombLaunch(
 
   const launchDistance = earliestTOI === null
     ? desiredDistance
-    : minimumDistance + desiredClearance * earliestTOI - 1;
+    : desiredDistance * earliestTOI - 1;
   if (launchDistance < minimumDistance) return null;
   return {
     x: owner.x + unitX * launchDistance,

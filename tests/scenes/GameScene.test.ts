@@ -99,7 +99,6 @@ vi.mock('../../src/systems/Collision', () => ({
   separateCircleFromRect: vi.fn((x: number, y: number) => ({ x, y })),
   circleCircleOverlap: vi.fn(() => false),
   circleRectOverlap: vi.fn(() => false),
-  sweptCircleRectOverlap: vi.fn(() => false),
   sweptCircleRectTOI: vi.fn(() => null),
   sweptCircleCircleTOI: vi.fn(() => null),
 }));
@@ -318,7 +317,6 @@ import { GameScene } from '../../src/scenes/GameScene';
 import { DEFAULT_GAME_SETTINGS, FRAG_BOMB_RADIUS, MAX_DT, type GameSettings } from '../../src/config';
 import { circleCircleOverlap } from '../../src/systems/Collision';
 import { circleRectOverlap } from '../../src/systems/Collision';
-import { sweptCircleRectOverlap } from '../../src/systems/Collision';
 import { sweptCircleCircleTOI, sweptCircleRectTOI } from '../../src/systems/Collision';
 
 beforeEach(() => {
@@ -341,7 +339,6 @@ beforeEach(() => {
   });
   vi.mocked(circleCircleOverlap).mockReturnValue(false);
   vi.mocked(circleRectOverlap).mockReturnValue(false);
-  vi.mocked(sweptCircleRectOverlap).mockReturnValue(false);
   vi.mocked(sweptCircleRectTOI).mockReturnValue(null);
   vi.mocked(sweptCircleCircleTOI).mockReturnValue(null);
 });

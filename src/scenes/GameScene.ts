@@ -19,7 +19,7 @@ import {
 import { InputManager, type PlayerInput } from '../systems/InputManager';
 import { generateMaze } from '../systems/MazeGenerator';
 import {
-  separateCircleFromRect, circleCircleOverlap, circleRectOverlap, sweptCircleRectOverlap,
+  separateCircleFromRect, circleCircleOverlap, circleRectOverlap,
   sweptCircleCircleTOI, sweptCircleRectTOI,
 } from '../systems/Collision';
 import { reflect } from '../utils/math';

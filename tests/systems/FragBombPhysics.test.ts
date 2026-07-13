@@ -57,6 +57,16 @@ describe('resolveFragBombLaunch', () => {
     expect(circleRectOverlap(start.x, start.y, bombRadius, wall.x, wall.y, wall.width, wall.height)).toBe(true);
     expect(resolveFragBombLaunch(owner, { x: 1, y: 0 }, ownerRadius, bombRadius, 8, [wall])).toBeNull();
   });
+
+  it('returns null when the path to the minimum launch distance crosses a wall corner', () => {
+    const angle = 50 * Math.PI / 180;
+    const direction = { x: Math.cos(angle), y: Math.sin(angle) };
+    const wall = { x: 117, y: 72, width: 10, height: 40 };
+
+    expect(circleRectOverlap(owner.x, owner.y, ownerRadius,
+      wall.x, wall.y, wall.width, wall.height)).toBe(false);
+    expect(resolveFragBombLaunch(owner, direction, ownerRadius, bombRadius, 8, [wall])).toBeNull();
+  });
 });
 
 describe('advanceFragBomb', () => {

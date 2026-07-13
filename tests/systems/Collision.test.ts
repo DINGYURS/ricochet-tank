@@ -49,6 +49,33 @@ describe('segmentCircleTOI', () => {
     )).toBeNull();
   });
 
+  it('preserves arbitrary-angle tangent and near-miss results after a large translation', () => {
+    const translation = 1_000_000;
+    const startX = -10.031990400796413;
+    const startY = 0.5993067647946363;
+    const endX = 9.952011732423145;
+    const endY = 1.3990934485273194;
+    const dx = endX - startX;
+    const dy = endY - startY;
+    const length = Math.hypot(dx, dy);
+    const normalX = -dy / length;
+    const normalY = dx / length;
+    const outwardSign = startX * normalX + startY * normalY >= 0 ? 1 : -1;
+    const offsetX = normalX * outwardSign * 1e-6;
+    const offsetY = normalY * outwardSign * 1e-6;
+
+    expect(segmentCircleTOI(
+      startX + translation, startY + translation,
+      endX + translation, endY + translation,
+      translation, translation, 1,
+    )).toBeCloseTo(0.5);
+    expect(segmentCircleTOI(
+      startX + offsetX + translation, startY + offsetY + translation,
+      endX + offsetX + translation, endY + offsetY + translation,
+      translation, translation, 1,
+    )).toBeNull();
+  });
+
   it('rejects a near miss', () => {
     expect(segmentCircleTOI(0, 1.001, 10, 1.001, 5, 0, 1)).toBeNull();
   });
