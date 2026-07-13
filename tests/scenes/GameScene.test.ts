@@ -961,6 +961,42 @@ describe('GameScene', () => {
     expect(explosionSound).not.toHaveBeenCalled();
   });
 
+  it('preserves a same-frame pickup when a snapshotted Frag Bomb launch fails', async () => {
+    const actualCollision = await vi.importActual<typeof import('../../src/systems/Collision')>('../../src/systems/Collision');
+    vi.mocked(sweptCircleRectTOI).mockImplementation(actualCollision.sweptCircleRectTOI);
+    const scene = new GameScene();
+    (scene as any).create({ mode: 'local', localPlayers: 2 });
+    const owner = (scene as any).tanks[0];
+    owner.rotation = 0;
+    owner.heldPowerUp = 'FragBomb';
+    (scene as any).wallData = [{
+      x: owner.x + owner.radius,
+      y: owner.y - 20,
+      width: 10,
+      height: 40,
+      orientation: 'vertical',
+    }];
+    vi.spyOn((scene as any).powerUpManager, 'update').mockImplementation(() => {
+      expect(owner.heldPowerUp).toBeNull();
+      owner.heldPowerUp = 'Rocket';
+    });
+    const shootSound = vi.spyOn((scene as any).soundManager, 'shoot');
+    const rocketSound = vi.spyOn((scene as any).soundManager, 'rocketFire');
+    const explosionSound = vi.spyOn((scene as any).soundManager, 'explosion');
+    mockPlayer1Input.shoot = true;
+    (scene as any).roundState = 'PLAYING';
+
+    scene.update(0, 16);
+
+    expect(owner.heldPowerUp).toBe('Rocket');
+    expect((scene as any).fragBombs).toEqual([]);
+    expect((scene as any).fragFragments).toEqual([]);
+    expect((scene as any).bullets).toEqual([]);
+    expect(shootSound).not.toHaveBeenCalled();
+    expect(rocketSound).not.toHaveBeenCalled();
+    expect(explosionSound).not.toHaveBeenCalled();
+  });
+
   it('detonates the active Frag Bomb on second primary input without firing a bullet', () => {
     const scene = new GameScene();
     (scene as any).create({ mode: 'local', localPlayers: 2 });

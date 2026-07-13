@@ -4,7 +4,6 @@ import {
   createFragmentVelocities,
   resolveFragBombLaunch,
   selectFragBombEvent,
-  shouldDetonateFragBomb,
   type FragBombState,
 } from '../../src/systems/FragBombPhysics';
 import { circleCircleOverlap, circleRectOverlap } from '../../src/systems/Collision';
@@ -80,21 +79,6 @@ describe('selectFragBombEvent', () => {
     expect(selectFragBombEvent(0.4, 0.2, null)).toEqual({ type: 'wall', toi: 0.2 });
     expect(selectFragBombEvent(0.2, 0.4, null)).toEqual({ type: 'tank', toi: 0.2 });
     expect(selectFragBombEvent(null, null, null)).toBeNull();
-  });
-});
-
-describe('shouldDetonateFragBomb', () => {
-  it('detonates from a manual second trigger', () => {
-    expect(shouldDetonateFragBomb({ manualTrigger: true, collision: false, age: 0 }, 4)).toBe(true);
-  });
-
-  it('detonates from collision or lifetime expiry', () => {
-    expect(shouldDetonateFragBomb({ manualTrigger: false, collision: true, age: 0 }, 4)).toBe(true);
-    expect(shouldDetonateFragBomb({ manualTrigger: false, collision: false, age: 4 }, 4)).toBe(true);
-  });
-
-  it('continues flying without a trigger', () => {
-    expect(shouldDetonateFragBomb({ manualTrigger: false, collision: false, age: 3.9 }, 4)).toBe(false);
   });
 });
 

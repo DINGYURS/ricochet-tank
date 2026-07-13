@@ -14,12 +14,6 @@ export interface FragBombState {
   active: boolean;
 }
 
-export interface FragBombTriggerState {
-  manualTrigger: boolean;
-  collision: boolean;
-  age: number;
-}
-
 export type FragBombEvent = {
   type: 'tank' | 'wall' | 'lifetime';
   toi: number;
@@ -93,10 +87,6 @@ export function advanceFragBomb(state: FragBombState, dt: number): FragBombState
     y: state.y + state.vy * dt,
     age: state.age + dt,
   };
-}
-
-export function shouldDetonateFragBomb(trigger: FragBombTriggerState, maxLifetime: number): boolean {
-  return trigger.manualTrigger || trigger.collision || trigger.age >= maxLifetime;
 }
 
 export function createFragmentVelocities(count: number, speed: number): Array<{ vx: number; vy: number }> {

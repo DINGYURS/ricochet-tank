@@ -1017,7 +1017,7 @@ export class GameScene extends Phaser.Scene {
           this.wallData,
         );
         if (origin === null) {
-          tank.heldPowerUp = PowerUpType.FragBomb;
+          if (tank.heldPowerUp === null) tank.heldPowerUp = PowerUpType.FragBomb;
           return;
         }
         this.fragBombs.push(new FragBomb(
